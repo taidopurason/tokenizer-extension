@@ -8,7 +8,7 @@ def benchmark(tokenizer, tokenizer_name=None, metrics=None, eval_datasets=None):
     result = {"tokenizer": tokenizer_name}
     for name, dataset in eval_datasets.items():
         res = evaluate_tokenizer(tokenizer, tqdm(dataset, desc=f"Evaluating {tokenizer_name} on {name}"))
-        for col in (list(res.keys()) if cols is None else metrics):
+        for col in (list(res.keys()) if metrics is None else metrics):
             result[f"{name}_{col}"] = res[col]
     return result
 
