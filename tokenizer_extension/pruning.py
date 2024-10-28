@@ -6,7 +6,9 @@ from tokenizers import Tokenizer
 from .utils import update_postprocessor_special_tokens, get_vocab_and_merges, get_ordered_vocab, get_added_tokens_vocab
 
 
-def prune_tokenizer_last(tokenizer, n, ignore_added=True, ignore_special=True, ignore_tokens=None, verbose=False):
+def prune_tokenizer(
+        tokenizer, prune_ordered_tokens, n, ignore_added=True, ignore_special=True, ignore_tokens=None, verbose=False
+):
     cfg = json.loads(tokenizer._tokenizer.to_str())
     full_vocab = tokenizer._tokenizer.get_vocab(True)
     vocab, merges = get_vocab_and_merges(tokenizer)
@@ -22,11 +24,12 @@ def prune_tokenizer_last(tokenizer, n, ignore_added=True, ignore_special=True, i
                 "Added tokens can only be ignored along with special tokens, please set ignore_special=False")
         ignore_vocab.update(get_added_tokens_vocab(tokenizer, special_only=not ignore_added))
 
-    tokens_to_prune = set(islice([x for x in ordered_vocab if x not in ignore_vocab], n))
+    tokens_to_prune = set(islice([x for x in prune_ordered_tokens if x not in ignore_vocab], n))
 
     cfg["model"]["merges"] = [" ".join(m) for m in merges if
                               all(t not in tokens_to_prune for t in m) and "".join(m) not in tokens_to_prune]
     free_ids = sorted([full_vocab[x] for x in tokens_to_prune])
+
     new_full_vocab = {
         k: v - sum(int(fid < v) for fid in free_ids)
         for k, v in full_vocab.items()
@@ -55,3 +58,17 @@ def prune_tokenizer_last(tokenizer, n, ignore_added=True, ignore_special=True, i
         print("Empty indices:", [i for i in range(len(new_reverse_vocab)) if i not in new_reverse_vocab])
 
     return tokenizer
+
+
+def prune_tokenizer_last(tokenizer, n, ignore_added=True, ignore_special=True, ignore_tokens=None, verbose=False):
+    full_vocab = tokenizer._tokenizer.get_vocab(True)
+    reverse_ordered_vocab = reversed(get_ordered_vocab(full_vocab))
+    return prune_tokenizer(
+        tokenizer,
+        reverse_ordered_vocab,
+        n,
+        ignore_added=ignore_added,
+        ignore_special=ignore_special,
+        ignore_tokens=ignore_tokens,
+        verbose=verbose
+    )
