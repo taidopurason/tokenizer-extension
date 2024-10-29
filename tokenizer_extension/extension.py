@@ -3,7 +3,8 @@ from typing import Optional, List, Tuple, Dict, Union
 from tokenizers import pre_tokenizers
 from transformers.convert_slow_tokenizer import generate_merges
 
-from .utils import get_ordered_vocab, get_vocab_and_merges, replace_tokenizer_vocab_merges
+from .utils import get_ordered_vocab, get_vocab_and_merges, replace_tokenizer_vocab_merges, get_added_tokens, \
+    get_added_tokens_vocab
 
 
 def get_vocab_scores(
@@ -70,10 +71,21 @@ def extend_vocab(
     return combined_vocab, combined_merges
 
 
-def extend_tokenizer(tokenizer, new_vocab, new_merges=None, n_tokens=None):
+def extend_tokenizer(
+        tokenizer, new_vocab, new_merges=None, n_tokens=None, generate_new_merges=False, prepend_merges=False
+):
     vocab, merges = get_vocab_and_merges(tokenizer)
     max_token_id = max(v for _, v in tokenizer._tokenizer.get_vocab(True).items())
-    ext_vocab, ext_merges = extend_vocab(new_vocab, vocab, merges, max_token_id, new_merges=new_merges,
-                                         n_tokens=n_tokens)
+    ext_vocab, ext_merges = extend_vocab(
+        new_vocab,
+        vocab,
+        merges,
+        max_token_id,
+        new_merges=new_merges,
+        n_tokens=n_tokens,
+        generate_new_merges=generate_new_merges,
+        added_tokens=list(get_added_tokens_vocab(tokenizer).keys()),
+        prepend_merges=prepend_merges
+    )
     tokenizer = replace_tokenizer_vocab_merges(tokenizer, ext_vocab, ext_merges)
     return tokenizer
