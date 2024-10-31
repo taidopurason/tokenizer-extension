@@ -1,5 +1,5 @@
 import json
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 from tokenizers import Tokenizer, AddedToken
 from tqdm import tqdm
@@ -15,14 +15,14 @@ def write_json(data, file_path, indent=4):
         json.dump(data, file, indent=indent)
 
 
-def get_vocab_and_merges(tokenizer):
+def get_vocab_and_merges(tokenizer) -> Tuple[Dict[str, int], Tuple[str, str]]:
     cfg = json.loads(tokenizer._tokenizer.to_str())
     merges = [tuple(x) if isinstance(x, list) else tuple(x.split(" ")) for x in cfg["model"]["merges"]]
     vocab = cfg["model"]["vocab"]
     return vocab, merges
 
 
-def get_ordered_vocab(vocab):
+def get_ordered_vocab(vocab) -> List[str]:
     sorted_vocab = sorted(vocab.items(), key=lambda x: x[1])
     return [x[0] for x in sorted_vocab]
 

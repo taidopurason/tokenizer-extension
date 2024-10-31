@@ -2,12 +2,17 @@ from collections import defaultdict
 from tqdm import tqdm
 from heapq import heappush, heappop
 
-
 def group_tokens(text, tokenizer):
-    pre_tokenized = [x[0] for x in tokenizer._tokenizer.pre_tokenizer.pre_tokenize_str(text)]
+    pre_tokenizer = tokenizer._tokenizer.pre_tokenizer
+    if tokenizer._tokenizer.pre_tokenizer is None:
+        raise ValueError("Tokenizer must have a pre-tokenizer")
+
+    if tokenizer._tokenizer.normalizer is not None:
+        text = tokenizer._tokenizer.normalizer.normalize_str(text)
+
+    pre_tokenized = [x[0] for x in pre_tokenizer.pre_tokenize_str(text)]
 
     grouped_new_words = []
-    group = []
     for word in pre_tokenized:
         group = [token.value for token in tokenizer._tokenizer.model.tokenize(word)]
         if len(group) > 0:
