@@ -12,7 +12,6 @@ def prune_tokenizer(
     cfg = json.loads(tokenizer._tokenizer.to_str())
     full_vocab = tokenizer._tokenizer.get_vocab(True)
     vocab, merges = get_vocab_and_merges(tokenizer)
-    ordered_vocab = reversed(get_ordered_vocab(full_vocab))
 
     ignore_vocab = {}
     if ignore_tokens is not None:
@@ -28,13 +27,8 @@ def prune_tokenizer(
 
     cfg["model"]["merges"] = [" ".join(m) for m in merges if
                               all(t not in tokens_to_prune for t in m) and "".join(m) not in tokens_to_prune]
-    free_ids = sorted([full_vocab[x] for x in tokens_to_prune])
-
-    new_full_vocab = {
-        k: v - sum(int(fid < v) for fid in free_ids)
-        for k, v in full_vocab.items()
-        if k not in tokens_to_prune
-    }
+    new_vocab_tokens = [k for k in get_ordered_vocab(full_vocab) if k not in tokens_to_prune]
+    new_full_vocab = {k: i for i, k in enumerate(new_vocab_tokens)}
     cfg["model"]["vocab"] = {k: new_full_vocab[k] for k in vocab if k in new_full_vocab}
 
     cfg["added_tokens"] = [
@@ -62,7 +56,7 @@ def prune_tokenizer(
 
 def prune_tokenizer_last(tokenizer, n, ignore_added=True, ignore_special=True, ignore_tokens=None, verbose=False):
     full_vocab = tokenizer._tokenizer.get_vocab(True)
-    reverse_ordered_vocab = reversed(get_ordered_vocab(full_vocab))
+    reverse_ordered_vocab = list(reversed(get_ordered_vocab(full_vocab)))
     return prune_tokenizer(
         tokenizer,
         reverse_ordered_vocab,
