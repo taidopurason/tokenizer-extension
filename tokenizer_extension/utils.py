@@ -15,7 +15,7 @@ def write_json(data, file_path, indent=4):
         json.dump(data, file, indent=indent)
 
 
-def get_vocab_and_merges(tokenizer) -> Tuple[Dict[str, int], Tuple[str, str]]:
+def get_vocab_and_merges(tokenizer) -> Tuple[Dict[str, int], List[Tuple[str, str]]]:
     cfg = json.loads(tokenizer._tokenizer.to_str())
     merges = [tuple(x) if isinstance(x, list) else tuple(x.split(" ")) for x in cfg["model"]["merges"]]
     vocab = cfg["model"]["vocab"]
