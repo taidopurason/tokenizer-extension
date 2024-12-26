@@ -32,7 +32,8 @@ def calculate_merge_statistics(texts, tokenizer, ignore_merges=None):
     )
 
     merge_counts = {m: 0 for m in merges}
-    token_counts = {t: 0 for t in vocab}
+    full_vocab = tokenizer._tokenizer.get_vocab(True)
+    token_counts = {t: 0 for t in full_vocab}
 
     pre_tokenizer = tokenizer._tokenizer.pre_tokenizer
     normalizer = tokenizer._tokenizer.normalizer
@@ -86,18 +87,20 @@ def merge_pruning_order(vocab, merges, merge_counts):
 
 # For comparing different pruning orders, we can use the following code:
 def calculate_orders(texts, tokenizer, ignore_merges=None, calculate_hf_impl=False, return_counts=False):
-    vocab, merges = get_vocab_and_merges(tokenizer)
+    _, merges = get_vocab_and_merges(tokenizer)
+    full_vocab = tokenizer._tokenizer.get_vocab(True)
+
     # tokenize the whole dataset
     token_counts, merge_counts = calculate_merge_statistics(texts, tokenizer, ignore_merges=ignore_merges)
     orders = {
         "least_used_token": least_used_token_pruning_order(
-            vocab=vocab, token_counts=token_counts, merge_counts=merge_counts
+            vocab=full_vocab, token_counts=token_counts, merge_counts=merge_counts
         ),
         "merge": merge_pruning_order(
-            vocab=vocab, merges=merges, merge_counts=merge_counts
+            vocab=full_vocab, merges=merges, merge_counts=merge_counts
         ),
-        "token_frequency": [tok for tok, _ in sorted(token_counts.items(), key=lambda x: (x[1], -vocab[x[0]]))],
-        "last_n": list(reversed(get_ordered_vocab(vocab))),
+        "token_frequency": [tok for tok, _ in sorted(token_counts.items(), key=lambda x: (x[1], -full_vocab[x[0]]))],
+        "last_n": list(reversed(get_ordered_vocab(full_vocab))),
     }
 
     # another tokenization step on the whole dataset
