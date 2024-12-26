@@ -1,3 +1,4 @@
+import logging
 from collections import defaultdict
 from typing import List, Dict
 
@@ -91,7 +92,9 @@ def calculate_orders(texts, tokenizer, ignore_merges=None, calculate_hf_impl=Fal
     full_vocab = tokenizer._tokenizer.get_vocab(True)
 
     # tokenize the whole dataset
+    logging.info("Calculating merge statistics")
     token_counts, merge_counts = calculate_merge_statistics(texts, tokenizer, ignore_merges=ignore_merges)
+    logging.info("Calculating orders")
     orders = {
         "least_used_token": least_used_token_pruning_order(
             vocab=full_vocab, token_counts=token_counts, merge_counts=merge_counts
@@ -105,6 +108,7 @@ def calculate_orders(texts, tokenizer, ignore_merges=None, calculate_hf_impl=Fal
 
     # another tokenization step on the whole dataset
     if calculate_hf_impl:
+        logging.info("Calculating HF implementation")
         orders["hf_token_frequency"] = calculate_frequency_order(texts, tokenizer)
 
     # for debugging purposes
