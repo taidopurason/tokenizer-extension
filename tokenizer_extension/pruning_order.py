@@ -18,8 +18,8 @@ def calculate_token_counts(data, tokenizer) -> Dict[str, int]:
 
 def calculate_frequency_order(train_data, tokenizer) -> List[str]:
     token_counts = calculate_token_counts(train_data, tokenizer)
-    vocab, _ = get_vocab_and_merges(tokenizer)
-    return [tok for tok, _ in sorted(token_counts.items(), key=lambda x: (x[1], -vocab[x[0]]))]
+    full_vocab = tokenizer._tokenizer.get_vocab(True)
+    return [tok for tok, _ in sorted(token_counts.items(), key=lambda x: (x[1], -full_vocab[x[0]]))]
 
 
 def calculate_merge_statistics(texts, tokenizer, ignore_merges=None):
