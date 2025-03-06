@@ -1,7 +1,3 @@
-import os
-import tempfile
-from collections import defaultdict
-from tqdm import tqdm
 from typing import Optional
 
 try:
@@ -150,7 +146,7 @@ def train_sentencepiece_from_model(
         ]
     }
 
-    print(f"Training SentencePiece model with the following parameters: {kwargs}")
+    print(f"Training SentencePiece model with the following parameters: {kwargs}", flush=True)
 
     spm.SentencePieceTrainer.train(
         input=input,

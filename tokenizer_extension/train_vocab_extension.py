@@ -84,7 +84,7 @@ def train_vocab_extension(tokenizer, corpus: Iterable[str], extension_size: int,
 
     for text in tqdm(corpus, desc="computing frequencies"):
         if is_sentencepiece:
-            from sentencepiece_utils import group_tokens as group_tokens_sentencepiece
+            from .sentencepiece_utils import group_tokens as group_tokens_sentencepiece
             grouped_tokens = group_tokens_sentencepiece(text, tokenizer)
         else:
             grouped_tokens = group_tokens(text, tokenizer)
