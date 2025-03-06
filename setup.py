@@ -15,5 +15,6 @@ setup(
         "tqdm",
         "requests",
         "nltk",
+        "sentencepiece",
     ],
 )

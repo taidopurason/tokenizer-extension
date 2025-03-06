@@ -1,4 +1,6 @@
 from collections import defaultdict
+from typing import Iterable
+
 from tqdm import tqdm
 from heapq import heappush, heappop
 
@@ -77,11 +79,16 @@ def merge_pair(a, b, splits, word_freqs, pair_freqs, queue, where_to_update):
     return splits
 
 
-def train_vocab_extension(tokenizer, corpus, extension_size: int):
+def train_vocab_extension(tokenizer, corpus: Iterable[str], extension_size: int, is_sentencepiece: bool = False):
     split_freqs = defaultdict(int)
 
     for text in tqdm(corpus, desc="computing frequencies"):
-        grouped_tokens = group_tokens(text, tokenizer)
+        if is_sentencepiece:
+            from sentencepiece_utils import group_tokens as group_tokens_sentencepiece
+            grouped_tokens = group_tokens_sentencepiece(text, tokenizer)
+        else:
+            grouped_tokens = group_tokens(text, tokenizer)
+
         for word in grouped_tokens:
             split_freqs[word] += 1
 
