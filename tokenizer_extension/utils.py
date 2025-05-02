@@ -42,9 +42,10 @@ def budget_iterator(ds, limit=1_000_000_000):
             text = x["text"]
             count += len(text)
             if count >= limit:
-                break
+                return
             pbar.update(len(text))
             yield text
+    raise ValueError(f"The dataset too small to fill the budget ({count} / {limit}).")
 
 
 def batch_iterator(dataset, batch_size=1000, verbose=False):

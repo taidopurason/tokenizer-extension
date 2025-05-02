@@ -51,6 +51,11 @@ def extend_vocab(
         alphabet = list(sorted(pre_tokenizers.ByteLevel.alphabet()))
 
     new_vocab_filtered = {k: v for k, v in new_vocab.items() if k not in vocab and k not in added_tokens}
+    if n_tokens is not None and len(new_vocab_filtered) < n_tokens:
+        raise ValueError(
+            f"Not enough new tokens to add. Found {len(new_vocab_filtered)}, but expected {n_tokens}."
+        )
+
     new_vocab_filtered = {
         k: max_token_id + v + 1
         for v, k in enumerate(islice(get_ordered_vocab(new_vocab_filtered), n_tokens))

@@ -18,7 +18,7 @@ def token_bytes_to_string(b):
 
 
 class TiktokenTokenizerWrapper:
-    def __init__(self, model_name):
+    def __init__(self, model_name: str):
         self.tokenizer = tiktoken.encoding_for_model(model_name)
         self.vocab = {token_bytes_to_string(k): v for k, v in self.tokenizer._mergeable_ranks.items()}
         self.vocab.update(self.tokenizer._special_tokens)
@@ -35,7 +35,25 @@ class TiktokenTokenizerWrapper:
         return self.tokenizer.n_vocab
 
 
-TOKENIZER_TYPE = Union[PreTrainedTokenizerFast, PreTrainedTokenizer, TiktokenTokenizerWrapper]
+class SentencePieceWrapper:
+    def __init__(self, model_name: str):
+        import sentencepiece as spm
+        self.tokenizer = spm.SentencePieceProcessor(model_file=model_name)
+        self.vocab = {self.tokenizer.id_to_piece(idx): idx for idx in range(self.tokenizer.vocab_size())}
+        self.unk_token = self.tokenizer.id_to_piece(self.tokenizer.unk_id())
+        self.unk_token_id = self.tokenizer.unk_id()
+
+    def tokenize(self, text: str) -> List[str]:
+        return self.tokenizer.encode(text, out_type=str)
+
+    def get_vocab(self) -> Dict[str, int]:
+        return self.vocab
+
+    def __len__(self) -> int:
+        return self.tokenizer.vocab_size()
+
+
+TOKENIZER_TYPE = Union[PreTrainedTokenizerFast, PreTrainedTokenizer, TiktokenTokenizerWrapper, SentencePieceWrapper]
 
 
 @dataclass
@@ -70,13 +88,43 @@ class TokenizerConfig:
         )
 
 
+def _calculate_metrics(
+        vocab_size: int,
+        total_tokens: int,
+        total_chars: int,
+        total_words: int,
+        total_bytes: int,
+        total_examples: int,
+        unknown_tokens: int
+) -> Dict[str, float]:
+    return {
+        "vocab_size": vocab_size,
+        "dataset_size": total_examples,
+        "total_tokens": total_tokens,
+        "total_chars": total_chars,
+        "total_words": total_words,
+        "total_bytes": total_bytes,
+        "unknown_tokens": unknown_tokens,
+        "chars_per_token": total_chars / total_tokens if total_tokens else 0,
+        "tokens_per_char": total_tokens / total_chars if total_chars else 0,
+        "tokens_per_byte": total_tokens / total_bytes if total_bytes else 0,
+        "bytes_per_token": total_bytes / total_tokens if total_tokens else 0,
+        "words_per_token": total_words / total_tokens if total_tokens else 0,
+        "tokens_per_word": total_tokens / total_words if total_words else 0,
+        "tokens_per_sequence": total_tokens / total_examples if total_examples else 0,
+        "unknown_tokens_per_tokens": unknown_tokens / total_tokens if total_tokens else 0,
+    }
+
+
 # A simple benchmark method
-def evaluate_tokenizer(tokenizer: TOKENIZER_TYPE, data: Iterable[str], ignore_empty: bool = True) -> Dict[str, float]:
+def evaluate_tokenizer_slow(tokenizer: TOKENIZER_TYPE, data: Iterable[str], ignore_empty: bool = True) -> Dict[
+    str, float]:
     total_tokens = 0
     total_chars = 0
     total_words = 0
     total_examples = 0
     unknown_tokens = 0
+    total_bytes = 0
     vocab = tokenizer.get_vocab()
 
     for text in data:
@@ -88,24 +136,60 @@ def evaluate_tokenizer(tokenizer: TOKENIZER_TYPE, data: Iterable[str], ignore_em
 
         tokens = tokenizer.tokenize(text)
         total_tokens += len(tokens)
+        total_bytes += len(text.encode('utf-8'))
         total_chars += len(text)
         total_words += len(text.split())
         total_examples += 1
         unknown_tokens += len([t for t in tokens if t not in vocab])
-
-    return {
-        "vocab_size": len(tokenizer),
-        "dataset_size": total_examples,
-        "total_tokens": total_tokens,
-        "total_chars": total_chars,
-        "total_words": total_words,
-        "unknown_tokens": unknown_tokens,
-        "chars_per_token": total_chars / total_tokens,
-        "tokens_per_char": total_tokens / total_chars,
-        "words_per_token": total_words / total_tokens,
-        "tokens_per_word": total_tokens / total_words,
-        "tokens_per_sequence": total_tokens / total_examples,
-        "unknown_tokens_per_tokens": unknown_tokens / total_tokens,
-    }
+    return _calculate_metrics(
+        vocab_size=len(vocab),
+        total_tokens=total_tokens,
+        total_chars=total_chars,
+        total_words=total_words,
+        total_bytes=total_bytes,
+        total_examples=total_examples,
+        unknown_tokens=unknown_tokens
+    )
 
 
+from multiprocessing.pool import ThreadPool
+from typing import Iterable, Dict, Tuple
+
+
+def _process_text(text: str, tokenizer, ignore_empty: bool, vocab) -> Tuple[int, int, int, int, int, int]:
+    if text == "":
+        if ignore_empty:
+            print("Empty text in dataset.")
+            return (0, 0, 0, 0, 0, 0)
+        raise ValueError("Empty text in dataset.")
+
+    tokens = tokenizer.tokenize(text)
+    num_tokens = len(tokens)
+    num_bytes = len(text.encode("utf-8"))
+    num_chars = len(text)
+    num_words = len(text.split())
+    num_unknown = len([t for t in tokens if t not in vocab])
+
+    return (1, num_tokens, num_chars, num_words, num_bytes, num_unknown)
+
+
+def evaluate_tokenizer(tokenizer: TOKENIZER_TYPE, data: Iterable[str], ignore_empty: bool = True) -> Dict[str, float]:
+    vocab = tokenizer.get_vocab()
+
+    def worker(text):
+        return _process_text(text, tokenizer, ignore_empty, vocab)
+
+    with ThreadPool() as pool:
+        results = pool.map(worker, data)
+
+    total_examples, total_tokens, total_chars, total_words, total_bytes, unknown_tokens = map(sum, zip(*results))
+
+    return _calculate_metrics(
+        vocab_size=len(vocab),
+        total_tokens=total_tokens,
+        total_chars=total_chars,
+        total_words=total_words,
+        total_bytes=total_bytes,
+        total_examples=total_examples,
+        unknown_tokens=unknown_tokens
+    )

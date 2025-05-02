@@ -24,6 +24,8 @@ def prune_tokenizer(
         ignore_vocab.update(get_added_tokens_vocab(tokenizer, special_only=not ignore_added))
 
     tokens_to_prune = set(islice([x for x in prune_ordered_tokens if x not in ignore_vocab], n))
+    if len(tokens_to_prune) < n:
+        raise ValueError(f"Not enough tokens to prune, {len(tokens_to_prune)} < {n}")
 
     cfg["model"]["merges"] = [" ".join(m) for m in merges if
                               all(t not in tokens_to_prune for t in m) and "".join(m) not in tokens_to_prune]

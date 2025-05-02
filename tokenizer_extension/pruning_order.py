@@ -87,33 +87,41 @@ def merge_pruning_order(vocab, merges, merge_counts):
 
 
 # For comparing different pruning orders, we can use the following code:
-def calculate_orders(texts, tokenizer, ignore_merges=None, calculate_hf_impl=False, return_counts=False):
+def calculate_orders(
+        texts,
+        tokenizer,
+        calculate_token_frequency=False,
+        calculate_merge_based_pruning=False,
+        ignore_merges=None,
+        return_counts=False
+):
     _, merges = get_vocab_and_merges(tokenizer)
     full_vocab = tokenizer._tokenizer.get_vocab(True)
-
-    # tokenize the whole dataset
-    logging.info("Calculating merge statistics")
-    token_counts, merge_counts = calculate_merge_statistics(texts, tokenizer, ignore_merges=ignore_merges)
-    logging.info("Calculating orders")
     orders = {
-        "least_used_token": least_used_token_pruning_order(
-            vocab=full_vocab, token_counts=token_counts, merge_counts=merge_counts
-        ),
-        "merge": merge_pruning_order(
-            vocab=full_vocab, merges=merges, merge_counts=merge_counts
-        ),
-        "token_frequency": [tok for tok, _ in sorted(token_counts.items(), key=lambda x: (x[1], -full_vocab[x[0]]))],
-        "last_n": list(reversed(get_ordered_vocab(full_vocab))),
+        "last_n": list(reversed(get_ordered_vocab(full_vocab)))
     }
 
     # another tokenization step on the whole dataset
-    if calculate_hf_impl:
-        logging.info("Calculating HF implementation")
-        orders["hf_token_frequency"] = calculate_frequency_order(texts, tokenizer)
+    if calculate_token_frequency:
+        logging.info("Calculating HF token frequency")
+        orders["token_frequency"] = calculate_frequency_order(texts, tokenizer)
 
-    # for debugging purposes
-    if return_counts:
-        orders["_token_counts"] = token_counts
-        orders["_merge_counts"] = merge_counts
+    # tokenize the whole dataset
+    logging.info("Calculating merge statistics")
+    if calculate_merge_based_pruning:
+        token_counts, merge_counts = calculate_merge_statistics(texts, tokenizer, ignore_merges=ignore_merges)
+        logging.info("Calculating orders")
+        orders["least_used_token"] = least_used_token_pruning_order(
+            vocab=full_vocab, token_counts=token_counts, merge_counts=merge_counts
+        )
+        orders["merge"] = merge_pruning_order(
+            vocab=full_vocab, merges=merges, merge_counts=merge_counts
+        )
+        orders["_token_frequency"] = [
+            tok for tok, _ in sorted(token_counts.items(), key=lambda x: (x[1], -full_vocab[x[0]]))
+        ]
+        if return_counts:
+            orders["_token_counts"] = token_counts
+            orders["_merge_counts"] = merge_counts
 
     return orders
