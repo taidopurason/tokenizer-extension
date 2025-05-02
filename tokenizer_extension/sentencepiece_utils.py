@@ -124,7 +124,7 @@ def read_model(path: str):
 
 
 def train_sentencepiece_from_model(
-        pretraind_model_path: str,
+        pretrained_model_path: str,
         input: str,
         vocab_size: int = 64000,
         model_prefix: str = "sp_model",
@@ -132,7 +132,7 @@ def train_sentencepiece_from_model(
 ):
     import sentencepiece as spm
 
-    model = read_model(pretraind_model_path)
+    model = read_model(pretrained_model_path)
     config = {x[0].name: getattr(model.trainer_spec, x[0].name) for x in model.trainer_spec.ListFields()}
     assert config["model_type"] == 2
     kwargs = {
