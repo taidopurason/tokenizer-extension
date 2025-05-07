@@ -1,4 +1,7 @@
+import logging
 from typing import Optional
+
+from tokenizer_extension.utils import get_ordered_vocab
 
 try:
     import icu
@@ -156,3 +159,39 @@ def train_sentencepiece_from_model(
         model_type="bpe",
         **kwargs
     )
+
+
+ILLEGAL_CHARS = {" ", "\n", "\r", ""}
+
+
+def read_sentencepiece_vocab(path: str) -> list:
+    with open(path, "r", encoding="utf-8") as f:
+        return [line.split()[0] for line in f]
+
+
+def extend_vocab(tokenizer_prefix, extension_vocab, out_prefix, n_tokens=None):
+    from sentencepiece.sentencepiece_model_pb2 import ModelProto
+    model = read_model(f"{tokenizer_prefix}.model")
+
+    score = min(p.score for p in model.pieces) - 1
+    vocab = {p.piece for p in model.pieces}
+
+    tokens_to_add = get_ordered_vocab(extension_vocab)
+    logging.info(f"Read {len(tokens_to_add)} tokens to add.")
+    tokens_to_add = [piece for piece in tokens_to_add if piece not in ILLEGAL_CHARS and piece not in vocab]
+    logging.info(f"Removed existing and illegal tokens with remaining {len(tokens_to_add)} tokens to add.")
+    if n_tokens is not None:
+        tokens_to_add = tokens_to_add[:n_tokens]
+    logging.info(f"Adding {len(tokens_to_add)} tokens.")
+
+    for piece in tokens_to_add:
+        model.pieces.append(ModelProto.SentencePiece(piece=piece, score=score))
+        vocab.add(piece)
+        score -= 1
+
+    with open(f"{out_prefix}.model", "wb") as f:
+        f.write(model.SerializeToString())
+
+    with open(f"{out_prefix}.vocab", "w", encoding="utf-8") as f:
+        for p in model.pieces:
+            f.write(f"{p.piece}\t{int(p.score)}\n")
