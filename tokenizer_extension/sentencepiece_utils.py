@@ -161,7 +161,7 @@ def train_sentencepiece_from_model(
     )
 
 
-ILLEGAL_CHARS = {" ", "\n", "\r", ""}
+ILLEGAL_CHARS = {" ", "\n", "\r", "", "\t"}
 
 
 def read_sentencepiece_vocab(path: str) -> list:
