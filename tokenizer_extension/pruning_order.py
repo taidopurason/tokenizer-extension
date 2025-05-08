@@ -107,8 +107,8 @@ def calculate_orders(
         orders["token_frequency"] = calculate_frequency_order(texts, tokenizer)
 
     # tokenize the whole dataset
-    logging.info("Calculating merge statistics")
     if calculate_merge_based_pruning:
+        logging.info("Calculating merge statistics")
         token_counts, merge_counts = calculate_merge_statistics(texts, tokenizer, ignore_merges=ignore_merges)
         logging.info("Calculating orders")
         orders["least_used_token"] = least_used_token_pruning_order(
