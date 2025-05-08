@@ -1,5 +1,8 @@
 import logging
-from typing import Optional
+from collections import Counter
+from typing import Optional, List, Dict
+
+from tqdm import tqdm
 
 from tokenizer_extension.utils import get_ordered_vocab
 
@@ -195,3 +198,55 @@ def extend_vocab(tokenizer_prefix, extension_vocab, out_prefix, n_tokens=None):
     with open(f"{out_prefix}.vocab", "w", encoding="utf-8") as f:
         for p in model.pieces:
             f.write(f"{p.piece}\t{int(p.score)}\n")
+
+
+def train_coverage_extension(
+        data: List[str],
+        vocab: Dict[str, int],
+        coverage: float = 0.9995,
+        max_tokens: Optional[int] = None,
+):
+    counter = Counter()
+    for doc in tqdm(data):
+        counter.update(doc)
+
+    for c in ILLEGAL_CHARS:
+        del counter[c]
+
+    total_characters = sum(counter.values())
+    logging.info(f"Total characters: {total_characters}")
+    in_vocab_characters = sum(c for k, c in counter.items() if k in vocab)
+    initial_coverage = in_vocab_characters / total_characters
+    logging.info(f"The vocabulary coverage is {initial_coverage}")
+
+    if initial_coverage >= coverage:
+        logging.info(f"Coverage already achieved, no need to extend")
+        return
+
+    sorted_characters = sorted(
+        [(k, c) for k, c in counter.items() if k not in vocab],
+        key=lambda x: x[1],
+        reverse=True
+    )
+    n_tokens = 0
+    new_characters = in_vocab_characters
+    for _, c in sorted_characters:
+        new_characters += c
+        n_tokens += 1
+        if new_characters / total_characters >= coverage:
+            break
+
+    logging.info(f"Number of tokens to add: {n_tokens} (coverage={new_characters / total_characters})")
+
+    if max_tokens is not None and n_tokens > max_tokens:
+        logging.info(f"Number of tokens to add exceeds max_tokens, capping at {max_tokens}")
+        n_tokens = max_tokens
+
+    sorted_characters = sorted_characters[:n_tokens]
+    new_coverage = (sum(x for _, x in sorted_characters) + in_vocab_characters) / total_characters
+    logging.info(f"New coverage: {new_coverage}")
+
+    for x in sorted_characters:
+        logging.info(f"Adding {x[0]} with frequency {x[1]}")
+
+    return {x[0]: idx for idx, x in enumerate(sorted_characters)}
