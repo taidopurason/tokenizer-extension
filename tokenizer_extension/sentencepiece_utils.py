@@ -111,6 +111,8 @@ def group_tokens(text, tokenizer, separate_numbers=True, byte_fallback=True, spe
             if len(group) > 0:
                 grouped_new_words.append(group)
                 group = []
+            else:
+                token_script = None
         group.append(x)
 
         prev_script = token_script
@@ -208,7 +210,7 @@ def train_coverage_extension(
 ):
     counter = Counter()
     for doc in tqdm(data):
-        counter.update(doc)
+        counter.update(doc.replace(" ", "▁"))
 
     for c in ILLEGAL_CHARS:
         del counter[c]
@@ -221,7 +223,7 @@ def train_coverage_extension(
 
     if initial_coverage >= coverage:
         logging.info(f"Coverage already achieved, no need to extend")
-        return
+        return {}
 
     sorted_characters = sorted(
         [(k, c) for k, c in counter.items() if k not in vocab],
@@ -245,8 +247,5 @@ def train_coverage_extension(
     sorted_characters = sorted_characters[:n_tokens]
     new_coverage = (sum(x for _, x in sorted_characters) + in_vocab_characters) / total_characters
     logging.info(f"New coverage: {new_coverage}")
-
-    for x in sorted_characters:
-        logging.info(f"Adding {x[0]} with frequency {x[1]}")
 
     return {x[0]: idx for idx, x in enumerate(sorted_characters)}
