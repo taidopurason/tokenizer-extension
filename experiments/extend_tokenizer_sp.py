@@ -3,7 +3,7 @@ import os
 import sys
 
 from transformers import AutoTokenizer
-from transformers.utils.sentencepiece_model_pb2 import ModelProto
+from sentencepiece.sentencepiece_model_pb2 import ModelProto
 
 from tokenizer_extension.utils import read_json, get_vocab_and_merges, get_ordered_vocab
 
@@ -30,7 +30,7 @@ def read_tokens(vocab_path: str):
 def add_vocab(tokenizer_prefix, extend_vocab, out_prefix, n_tokens=None):
     model = read_model(f"{tokenizer_prefix}.model")
 
-    score = min(p.score for p in model.pieces) - 1
+    score = min(p.score for p in model.pieces if p.score != -1000000000) - 1
     vocab = {p.piece for p in model.pieces}
 
     tokens_to_add = get_ordered_vocab(extend_vocab)
@@ -60,10 +60,14 @@ def extend(
         extension_path: str,
         n_tokens: int,
         extension_method: str,
+        reorder_vocab: bool = False
 ):
     if extension_method == "sentencepiece":
         sp_vocab = read_sentencepiece_vocab(extension_path)
         new_vocab = {piece: idx for idx, piece in enumerate(sp_vocab)}
+        if reorder_vocab:
+            from tokenizer_extension.sentencepiece_utils import reorder_sp_vocab
+            new_vocab = reorder_sp_vocab(new_vocab)
     elif extension_method == "continued-training":
         new_vocab = read_json(f"{extension_path}/vocab.json")
     elif extension_method == "hf-training":

@@ -77,7 +77,8 @@ def extend_vocab(
 
 
 def extend_tokenizer(
-        tokenizer, new_vocab, new_merges=None, n_tokens=None, generate_new_merges=False, prepend_merges=False
+        tokenizer, new_vocab,
+        new_merges=None, n_tokens=None, generate_new_merges=False, prepend_merges=False, alphabet=None,
 ):
     vocab, merges = get_vocab_and_merges(tokenizer)
     max_token_id = max(v for _, v in tokenizer._tokenizer.get_vocab(True).items())
@@ -90,7 +91,8 @@ def extend_tokenizer(
         n_tokens=n_tokens,
         generate_new_merges=generate_new_merges,
         added_tokens=list(get_added_tokens_vocab(tokenizer).keys()),
-        prepend_merges=prepend_merges
+        prepend_merges=prepend_merges,
+        alphabet=alphabet
     )
     tokenizer = replace_tokenizer_vocab_merges(tokenizer, ext_vocab, ext_merges)
     return tokenizer

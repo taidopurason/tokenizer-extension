@@ -19,10 +19,15 @@ def extend(
         extension_path: str,
         n_tokens: int,
         extension_method: str,
+        is_sentencepiece: bool = False,
+        reorder_vocab: bool = False,
 ):
     if extension_method == "sentencepiece":
         sp_vocab = read_sentencepiece_vocab(extension_path)
         new_vocab = {piece: idx for idx, piece in enumerate(sp_vocab)}
+        if reorder_vocab:
+            from tokenizer_extension.sentencepiece_utils import reorder_sp_vocab
+            new_vocab = reorder_sp_vocab(new_vocab)
     elif extension_method == "continued-training":
         new_vocab = read_json(f"{extension_path}/vocab.json")
     elif extension_method == "hf-training":
@@ -33,7 +38,7 @@ def extend(
         raise ValueError(f"Unknown extension method: {extension_method}")
 
     tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
-    tokenizer = extend_tokenizer(tokenizer, new_vocab, n_tokens=n_tokens)
+    tokenizer = extend_tokenizer(tokenizer, new_vocab, n_tokens=n_tokens, alphabet=None if is_sentencepiece else [])
     tokenizer.save_pretrained(output_path)
 
 

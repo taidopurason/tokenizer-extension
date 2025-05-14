@@ -63,6 +63,9 @@ def get_token_script(token: str, prev: Optional[str] = None):
     if len(token) == 1:
         return get_script(token, prev)
 
+    if token == START_SYMBOL:
+        return None
+
     if token[0] == START_SYMBOL:
         start = 1
     else:
@@ -111,8 +114,6 @@ def group_tokens(text, tokenizer, separate_numbers=True, byte_fallback=True, spe
             if len(group) > 0:
                 grouped_new_words.append(group)
                 group = []
-            else:
-                token_script = None
         group.append(x)
 
         prev_script = token_script
@@ -249,3 +250,20 @@ def train_coverage_extension(
     logging.info(f"New coverage: {new_coverage}")
 
     return {x[0]: idx for idx, x in enumerate(sorted_characters)}
+
+
+# Reorder vocab so that character vocabulary gets added first
+def reorder_sp_vocab(vocab: dict) -> dict:
+    token_list = get_ordered_vocab(vocab)
+    base_character_idxs = [i for i, x in enumerate(token_list) if len(x) == 1]
+    min_idx = min(base_character_idxs)
+    max_idx = max(base_character_idxs)
+
+    if not all(len(x) == 1 for x in token_list[min_idx:max_idx + 1]):
+        print("Detected range of characters is not continuous")
+
+    base_vocab = [x for x in token_list if len(x) == 1]
+    base_tokens = set(base_vocab)
+    new_vocab = base_vocab + [x for x in token_list if x not in base_tokens]
+    return {piece: idx for idx, piece in enumerate(new_vocab)}
+
