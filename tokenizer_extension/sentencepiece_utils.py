@@ -60,11 +60,11 @@ def get_token_script(token: str, prev: Optional[str] = None):
     if len(token) == 0:
         raise ValueError("Empty token.")
 
-    if len(token) == 1:
-        return get_script(token, prev)
-
     if token == START_SYMBOL:
         return None
+
+    if len(token) == 1:
+        return get_script(token, prev)
 
     if token[0] == START_SYMBOL:
         start = 1
