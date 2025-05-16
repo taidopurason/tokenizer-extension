@@ -1,3 +1,4 @@
+import logging
 from itertools import islice
 from typing import Optional, List, Tuple, Dict, Union
 from tokenizers import pre_tokenizers
@@ -45,7 +46,7 @@ def extend_vocab(
         generate_new_merges: bool = False,
         alphabet: Optional[List[str]] = None,
         added_tokens: Optional[List[str]] = None,
-        prepend_merges: bool = False
+        prepend_merges: bool = False,
 ) -> Tuple[Dict[str, int], List[Tuple[str, str]]]:
     if alphabet is None:
         alphabet = list(sorted(pre_tokenizers.ByteLevel.alphabet()))
@@ -77,11 +78,18 @@ def extend_vocab(
 
 
 def extend_tokenizer(
-        tokenizer, new_vocab,
-        new_merges=None, n_tokens=None, generate_new_merges=False, prepend_merges=False, alphabet=None,
+        tokenizer,
+        new_vocab,
+        new_merges=None,
+        n_tokens=None,
+        generate_new_merges=False,
+        prepend_merges=False,
+        alphabet=None,
+        keep_special_token_position=False
 ):
     vocab, merges = get_vocab_and_merges(tokenizer)
-    max_token_id = max(v for _, v in tokenizer._tokenizer.get_vocab(True).items())
+    max_token_id = max(v for _, v in tokenizer._tokenizer.get_vocab(keep_special_token_position).items())
+    added_tokens_vocab = get_added_tokens_vocab(tokenizer)
     ext_vocab, ext_merges = extend_vocab(
         new_vocab,
         vocab,
@@ -94,5 +102,16 @@ def extend_tokenizer(
         prepend_merges=prepend_merges,
         alphabet=alphabet
     )
+    ext_vocab_reverse = {idx: token for token, idx in ext_vocab.items()}
+    if keep_special_token_position:
+        logging.info("Adding added tokens to the vocabulary if not present to preserve their indices")
+        for token, idx in added_tokens_vocab.items():
+            if token in ext_vocab:
+                continue
+            if idx in ext_vocab_reverse:
+                raise ValueError("Added token and extended vocabulary have tokens with the same indices")
+            ext_vocab[token] = idx
     tokenizer = replace_tokenizer_vocab_merges(tokenizer, ext_vocab, ext_merges)
+    if len(set(tokenizer.get_vocab().keys())) != len(set(tokenizer.get_vocab().values())):
+        raise ValueError("Tokens with the same ID found in vocabulary.")
     return tokenizer
