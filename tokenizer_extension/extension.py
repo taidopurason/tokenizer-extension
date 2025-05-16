@@ -85,10 +85,10 @@ def extend_tokenizer(
         generate_new_merges=False,
         prepend_merges=False,
         alphabet=None,
-        keep_special_token_position=False
+        keep_added_token_positions=True
 ):
     vocab, merges = get_vocab_and_merges(tokenizer)
-    max_token_id = max(v for _, v in tokenizer._tokenizer.get_vocab(keep_special_token_position).items())
+    max_token_id = max(v for _, v in tokenizer._tokenizer.get_vocab(keep_added_token_positions).items())
     added_tokens_vocab = get_added_tokens_vocab(tokenizer)
     ext_vocab, ext_merges = extend_vocab(
         new_vocab,
@@ -103,7 +103,7 @@ def extend_tokenizer(
         alphabet=alphabet
     )
     ext_vocab_reverse = {idx: token for token, idx in ext_vocab.items()}
-    if keep_special_token_position:
+    if keep_added_token_positions:
         logging.info("Adding added tokens to the vocabulary if not present to preserve their indices")
         for token, idx in added_tokens_vocab.items():
             if token in ext_vocab:
