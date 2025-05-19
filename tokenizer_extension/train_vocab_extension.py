@@ -1,5 +1,5 @@
 from collections import defaultdict
-from typing import Iterable
+from typing import Iterable, Optional
 
 from tqdm import tqdm
 from heapq import heappush, heappop
@@ -79,13 +79,31 @@ def merge_pair(a, b, splits, word_freqs, pair_freqs, queue, where_to_update):
     return splits
 
 
-def train_vocab_extension(tokenizer, corpus: Iterable[str], extension_size: int, is_sentencepiece: bool = False):
+def train_vocab_extension(
+        tokenizer,
+        corpus: Iterable[str],
+        extension_size: int,
+        is_sentencepiece: bool = False,
+        max_token_length: Optional[int] = None,
+        sp_legacy_implementation: bool = True,
+        sp_kwargs: Optional[dict] = None,
+):
     split_freqs = defaultdict(int)
+    check_token = lambda a, b: True
 
     for text in tqdm(corpus, desc="computing frequencies"):
         if is_sentencepiece:
-            from .sentencepiece_utils import group_tokens as group_tokens_sentencepiece
-            grouped_tokens = group_tokens_sentencepiece(text, tokenizer)
+            if sp_legacy_implementation:
+                from .sentencepiece_utils import group_tokens_legacy as group_tokens_sentencepiece
+                grouped_tokens = group_tokens_sentencepiece(text, tokenizer)
+            else:
+                from .sentencepiece_utils import group_tokens as group_tokens_sentencepiece
+                from .sentencepiece_utils import TrainerSpec, is_valid_merge
+                if sp_kwargs is None:
+                    sp_kwargs = {}
+                cfg = TrainerSpec(**sp_kwargs)
+                check_token = lambda a, b: is_valid_merge(a, b, cfg)
+                grouped_tokens = group_tokens_sentencepiece(text, tokenizer, **sp_kwargs)
         else:
             grouped_tokens = group_tokens(text, tokenizer)
 
@@ -113,8 +131,13 @@ def train_vocab_extension(tokenizer, corpus: Iterable[str], extension_size: int,
             if best_pair is None or pair_freqs.get(best_pair, None) != max_freq:
                 continue
 
+            new_token = "".join(best_pair)
+            if (max_token_length is not None and len(new_token) > max_token_length) or not check_token(*best_pair):
+                del pair_freqs[best_pair]
+                del where_to_update[best_pair]
+                continue
+
             splits = merge_pair(*best_pair, splits, word_freqs, pair_freqs, pair_queue, where_to_update)
-            new_token = best_pair[0] + best_pair[1]
             merges.append(best_pair)
             if new_token not in vocab:
                 vocab[new_token] = len(vocab)

@@ -1,5 +1,6 @@
 import logging
 from collections import Counter
+from dataclasses import dataclass
 from typing import Optional, List, Dict
 
 from tqdm import tqdm
@@ -10,18 +11,6 @@ try:
     import icu
 except ImportError:
     icu = None
-
-
-def get_script(char: str, prev: Optional[str] = None) -> str:
-    if icu is None:
-        raise ImportError('This function requires PyICU.')
-    script = icu.Script.getScript(char).getName()
-    if script == 'Hiragana' or script == 'Katakana':
-        return 'Han'
-    if script == 'Inherited' and prev is not None:
-        return prev
-    return script
-
 
 START_SYMBOL = '▁'
 SPECIAL = {'<unk>', '<s>', '</s>', '<pad>', '<mask>'}
@@ -56,6 +45,93 @@ NUMBERS = {
 }
 
 
+@dataclass
+class TrainerSpec:
+    allow_whitespace_only_pieces: bool = True
+    treat_whitespace_as_suffix: bool = False
+    split_by_whitespace: bool = True
+    split_by_number: bool = True
+    split_digits: bool = True
+    split_by_unicode_script: bool = True
+    max_sentencepiece_length: int = 16
+
+
+SEPARATE_TOKENS = SPECIAL.union(BYTE_VOCAB)
+
+
+def is_valid_merge(t1, t2, cfg: TrainerSpec):
+    if t1 in SEPARATE_TOKENS or t2 in SEPARATE_TOKENS:
+        return False
+    if len(t1) == 0 or len(t2) == 0:
+        raise ValueError("Received a zero-length piece for merge")
+
+    token = t1 + t2
+    if len(token) > cfg.max_sentencepiece_length:
+        return False
+
+    all_whitespace_piece = all(t == START_SYMBOL for t in token)
+    prev_script = None
+    for pos, c in enumerate(token):
+        if c == START_SYMBOL:
+            if not cfg.allow_whitespace_only_pieces or not all_whitespace_piece:
+                if cfg.treat_whitespace_as_suffix:
+                    if (cfg.split_by_whitespace and pos < len(token) - 1) or (
+                            not cfg.split_by_whitespace and pos < len(token) - 1 and pos == 0):
+                        return False
+                elif (cfg.split_by_whitespace and pos > 0) or (
+                        not cfg.split_by_whitespace and pos > 0 and pos == len(token) - 1):
+                    return False
+        else:
+            if cfg.split_digits and c.isdigit():
+                return False
+
+            script = icu.Script.getScript(c).getName()
+            if script == 'Hiragana' or script == 'Katakana':
+                script = 'Han'
+            if script == 'Inherited':
+                script = prev_script
+
+            if not cfg.split_by_number and c.isdigit():
+                script = None
+
+            if cfg.split_by_unicode_script and script is not None and prev_script is not None and script != prev_script:
+                return False
+            prev_script = script
+    return True
+
+
+def group_tokens(text, tokenizer, **sp_kwargs):
+    tokens = tokenizer.tokenize(text)
+    cfg = TrainerSpec(**sp_kwargs)
+    if len(tokens) == 0:
+        return []
+    grouped_tokens = []
+    group = [tokens[0]]
+    for token in tokens[1:]:
+        if is_valid_merge(group[-1], token, cfg):
+            group.append(token)
+        else:
+            if len(group) > 0:
+                grouped_tokens.append(group)
+            group = [token]
+
+    if len(group) > 0:
+        grouped_tokens.append(group)
+
+    return list(map(tuple, grouped_tokens))
+
+
+def get_script(char: str, prev: Optional[str] = None) -> str:
+    if icu is None:
+        raise ImportError('This function requires PyICU.')
+    script = icu.Script.getScript(char).getName()
+    if script == 'Hiragana' or script == 'Katakana':
+        return 'Han'
+    if script == 'Inherited' and prev is not None:
+        return prev
+    return script
+
+
 def get_token_script(token: str, prev: Optional[str] = None):
     if len(token) == 0:
         raise ValueError("Empty token.")
@@ -81,7 +157,7 @@ def get_token_script(token: str, prev: Optional[str] = None):
     return script
 
 
-def group_tokens(text, tokenizer, separate_numbers=True, byte_fallback=True, special_tokens=None):
+def group_tokens_legacy(text, tokenizer, separate_numbers=True, byte_fallback=True, special_tokens=None):
     separate_tokens = set()
     if special_tokens is None:
         special_tokens = SPECIAL
@@ -266,4 +342,3 @@ def reorder_sp_vocab(vocab: dict) -> dict:
     base_tokens = set(base_vocab)
     new_vocab = base_vocab + [x for x in token_list if x not in base_tokens]
     return {piece: idx for idx, piece in enumerate(new_vocab)}
-
