@@ -22,6 +22,8 @@ def extend(
         is_sentencepiece: bool = False,
         reorder_vocab: bool = False,
 ):
+    alphabet = [] if is_sentencepiece else None
+
     if extension_method == "sentencepiece":
         sp_vocab = read_sentencepiece_vocab(extension_path)
         new_vocab = {piece: idx for idx, piece in enumerate(sp_vocab)}
@@ -38,7 +40,7 @@ def extend(
         raise ValueError(f"Unknown extension method: {extension_method}")
 
     tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
-    tokenizer = extend_tokenizer(tokenizer, new_vocab, n_tokens=n_tokens, alphabet=None if is_sentencepiece else [])
+    tokenizer = extend_tokenizer(tokenizer, new_vocab, n_tokens=n_tokens, alphabet=alphabet)
     tokenizer.save_pretrained(output_path)
 
 
