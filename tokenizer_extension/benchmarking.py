@@ -1,10 +1,12 @@
 from dataclasses import dataclass, field
+from tokenizers import pre_tokenizers
 from transformers import AutoTokenizer, PreTrainedTokenizerFast, PreTrainedTokenizer
 import tiktoken
 from typing import List, Union
 from transformers.models.gpt2.tokenization_gpt2 import bytes_to_unicode
-from typing import Dict, Optional
-from typing import Iterable, Dict
+from typing import Optional, Iterable, Dict
+
+from tokenizer_extension.utils import get_vocab_and_merges, get_added_tokens_vocab
 
 DEFAULT_WHITESPACE_SYMBOL = "Ġ"
 SP_WHITESPACE_SYMBOL = "▁"
@@ -193,3 +195,68 @@ def evaluate_tokenizer(tokenizer: TOKENIZER_TYPE, data: Iterable[str], ignore_em
         total_examples=total_examples,
         unknown_tokens=unknown_tokens
     )
+
+
+def find_unreachable_tokens_tokenization(tokenizer, ignore_added=True):
+    original_value = None
+    try:
+        vocab, merges = get_vocab_and_merges(tokenizer)
+        if hasattr(tokenizer._tokenizer.model, "ignore_merges"):
+            original_value = tokenizer._tokenizer.model.ignore_merges
+            tokenizer._tokenizer.model.ignore_merges = False
+
+        reachability = {}
+        for tok in vocab:
+            values = [t.value for t in tokenizer._tokenizer.model.tokenize(tok)]
+            reachability[tok] = len(values) == 1 and values[0] == tok
+
+        unreachable_tokens = set(tok for tok, value in reachability.items() if value == False)
+        if ignore_added:
+            unreachable_tokens = unreachable_tokens - set(get_added_tokens_vocab(tokenizer))
+        return unreachable_tokens
+    finally:
+        if original_value is not None:
+            tokenizer._tokenizer.model.ignore_merges = original_value
+
+
+def fill_reachability(token, reachability, token_merges, alphabet):
+    if token in reachability:
+        return
+
+    if token in alphabet:
+        reachability[token] = True
+        return
+
+    if token not in token_merges:
+        reachability[token] = False
+        return
+
+    reachability[token] = False
+    for t1, t2 in token_merges[token]:
+        fill_reachability(t1, reachability, token_merges, alphabet)
+        fill_reachability(t2, reachability, token_merges, alphabet)
+        if reachability[t1] and reachability[t2]:
+            reachability[token] = True
+            return
+
+
+def find_unreachable_tokens(tokenizer, is_sentencepiece=False, ignore_added=True):
+    vocab, merges = get_vocab_and_merges(tokenizer)
+    alphabet = set(x for x in vocab if len(x) == 1) if is_sentencepiece else set(pre_tokenizers.ByteLevel.alphabet())
+    token_merges = {}
+    for token in vocab:
+        token_merges[token] = []
+
+    for merge in merges:
+        token_merges["".join(merge)].append(merge)
+
+    reachability = {}
+    for token in vocab:
+        fill_reachability(token, reachability, token_merges, alphabet)
+
+    unreachable_tokens = set(tok for tok, value in reachability.items() if value == False)
+
+    if ignore_added:
+        unreachable_tokens = unreachable_tokens - set(get_added_tokens_vocab(tokenizer))
+
+    return unreachable_tokens
