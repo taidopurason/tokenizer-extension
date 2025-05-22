@@ -1,12 +1,17 @@
 from dataclasses import dataclass, field
+from multiprocessing.pool import ThreadPool
+from typing import Optional, Iterable, Dict, Tuple, List, Union, Set
+
+import tiktoken
 from tokenizers import pre_tokenizers
 from transformers import AutoTokenizer, PreTrainedTokenizerFast, PreTrainedTokenizer
-import tiktoken
-from typing import List, Union
 from transformers.models.gpt2.tokenization_gpt2 import bytes_to_unicode
-from typing import Optional, Iterable, Dict
 
 from tokenizer_extension.utils import get_vocab_and_merges, get_added_tokens_vocab
+from tokenizer_extension.sentencepiece_utils import BYTE_VOCAB
+
+HF_BYTE_VOCAB = set(pre_tokenizers.ByteLevel.alphabet())
+SP_BYTE_VOCAB = set(BYTE_VOCAB)
 
 DEFAULT_WHITESPACE_SYMBOL = "Ġ"
 SP_WHITESPACE_SYMBOL = "▁"
@@ -119,8 +124,14 @@ def _calculate_metrics(
 
 
 # A simple benchmark method
-def evaluate_tokenizer_slow(tokenizer: TOKENIZER_TYPE, data: Iterable[str], ignore_empty: bool = True) -> Dict[
-    str, float]:
+def evaluate_tokenizer_slow(
+        tokenizer,
+        data: Iterable[str],
+        ignore_empty: bool = True,
+        extension_vocab: Optional[Dict[str, int]] = None,
+        byte_vocab: Set[str] = None,
+        is_sentencepiece: bool = False
+) -> Dict[str, float]:
     total_tokens = 0
     total_chars = 0
     total_words = 0
@@ -128,6 +139,12 @@ def evaluate_tokenizer_slow(tokenizer: TOKENIZER_TYPE, data: Iterable[str], igno
     unknown_tokens = 0
     total_bytes = 0
     vocab = tokenizer.get_vocab()
+    vocab_usage = {k: 0 for k in vocab}
+
+    if byte_vocab is None:
+        byte_vocab = SP_BYTE_VOCAB if is_sentencepiece else HF_BYTE_VOCAB
+
+    total_byte_fallbacks = 0
 
     for text in data:
         if text == "":
@@ -137,25 +154,42 @@ def evaluate_tokenizer_slow(tokenizer: TOKENIZER_TYPE, data: Iterable[str], igno
             raise ValueError("Empty text in dataset.")
 
         tokens = tokenizer.tokenize(text)
+        if byte_vocab is not None:
+            total_byte_fallbacks += len([t for t in tokens if t in byte_vocab])
+
+        for t in tokens:
+            vocab_usage[t] += 1
         total_tokens += len(tokens)
         total_bytes += len(text.encode('utf-8'))
         total_chars += len(text)
         total_words += len(text.split())
         total_examples += 1
         unknown_tokens += len([t for t in tokens if t not in vocab])
-    return _calculate_metrics(
-        vocab_size=len(vocab),
-        total_tokens=total_tokens,
-        total_chars=total_chars,
-        total_words=total_words,
-        total_bytes=total_bytes,
-        total_examples=total_examples,
-        unknown_tokens=unknown_tokens
-    )
 
+    vocab_utilisation = len(set(k for k, v in vocab_usage.items() if v != 0)) / len(vocab)
+    if extension_vocab is not None and len(extension_vocab) > 0:
+        extension_utilisation = len(set(k for k in extension_vocab if vocab_usage[k] != 0)) / len(extension_vocab)
+        extensions_tokens = sum(vocab_usage[k] for k in extension_vocab)
+    else:
+        extension_utilisation = 0
+        extensions_tokens = 0
 
-from multiprocessing.pool import ThreadPool
-from typing import Iterable, Dict, Tuple
+    return {
+        **_calculate_metrics(
+            vocab_size=len(vocab),
+            total_tokens=total_tokens,
+            total_chars=total_chars,
+            total_words=total_words,
+            total_bytes=total_bytes,
+            total_examples=total_examples,
+            unknown_tokens=unknown_tokens
+        ),
+        "extension_usage_rate": extension_utilisation,
+        "vocab_usage_rate": vocab_utilisation,
+        "total_extension_tokens": extensions_tokens,
+        "extension_tokens_per_token": extensions_tokens / total_tokens if total_tokens else 0,
+        "byte_fallback_rate": total_byte_fallbacks / total_tokens if total_tokens else 0,
+    }
 
 
 def _process_text(text: str, tokenizer, ignore_empty: bool, vocab) -> Tuple[int, int, int, int, int, int]:
