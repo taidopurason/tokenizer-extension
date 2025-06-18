@@ -71,6 +71,10 @@ def extend_vocab(
     if new_merges is None:
         new_vocab_scores = get_vocab_scores(new_vocab_filtered, alphabet=alphabet, added_tokens=added_tokens)
         new_merges = generate_merges(combined_vocab, new_vocab_scores)
+    else:
+        new_merges = [
+            (a, b) for a, b in new_merges if a in combined_vocab and b in combined_vocab and a + b in combined_vocab
+        ]
 
     combined_merges = new_merges + merges if prepend_merges else merges + new_merges
 
