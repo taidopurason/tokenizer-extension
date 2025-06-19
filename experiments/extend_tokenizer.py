@@ -21,8 +21,10 @@ def extend(
         extension_method: str,
         is_sentencepiece: bool = False,
         reorder_vocab: bool = False,
+        read_ct_merges: bool = False,
 ):
     alphabet = [] if is_sentencepiece else None
+    new_merges = None
 
     if extension_method == "sentencepiece":
         sp_vocab = read_sentencepiece_vocab(extension_path)
@@ -32,6 +34,8 @@ def extend(
             new_vocab = reorder_sp_vocab(new_vocab)
     elif extension_method == "continued-training":
         new_vocab = read_json(f"{extension_path}/vocab.json")
+        if read_ct_merges:
+            new_merges = [tuple(x.split(" ")) for x in read_json(f"{extension_path}/merges.json")]
     elif extension_method == "hf-training":
         new_vocab = get_vocab_and_merges(
             AutoTokenizer.from_pretrained(extension_path)
@@ -40,7 +44,7 @@ def extend(
         raise ValueError(f"Unknown extension method: {extension_method}")
 
     tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
-    tokenizer = extend_tokenizer(tokenizer, new_vocab, n_tokens=n_tokens, alphabet=alphabet)
+    tokenizer = extend_tokenizer(tokenizer, new_vocab, n_tokens=n_tokens, alphabet=alphabet, new_merges=new_merges)
     tokenizer.save_pretrained(output_path)
 
 
