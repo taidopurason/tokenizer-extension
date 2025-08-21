@@ -55,11 +55,6 @@ def load_mc4_valid(lang="et", n=None):
     return list(islice(df["text"], n))
 
 
-def load_enc(split="validation", n=None):
-    dataset = load_dataset("tartuNLP/enc2023-vocab-extension", split=split, streaming=True)
-    return [x["text"] for x in islice(dataset, n)]
-
-
 def load_hf_dataset(name, split=None, subset=None, text_field="text", n=None):
     ds = load_dataset(name, split=split, subset=subset, streaming=True)
     return [x[text_field] for x in islice(ds, n)]
