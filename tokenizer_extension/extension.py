@@ -4,8 +4,7 @@ from typing import Optional, List, Tuple, Dict, Union
 from tokenizers import pre_tokenizers
 from transformers.convert_slow_tokenizer import generate_merges
 
-from .utils import get_ordered_vocab, get_vocab_and_merges, replace_tokenizer_vocab_merges, get_added_tokens, \
-    get_added_tokens_vocab
+from .utils import get_ordered_vocab, get_vocab_and_merges, replace_tokenizer_vocab_merges, get_added_tokens_vocab
 
 
 def get_vocab_scores(
@@ -83,13 +82,13 @@ def extend_vocab(
 
 def extend_tokenizer(
         tokenizer,
-        new_vocab,
-        new_merges=None,
-        n_tokens=None,
-        generate_new_merges=False,
-        prepend_merges=False,
-        alphabet=None,
-        keep_added_token_positions=True
+        new_vocab: Dict[str, int],
+        new_merges: Optional[List[Tuple[str, str]]] = None,
+        n_tokens: int = None,
+        generate_new_merges: bool = False,
+        prepend_merges: bool = False,
+        alphabet: List[str] = None,
+        keep_added_token_positions: bool = True
 ):
     vocab, merges = get_vocab_and_merges(tokenizer)
     max_token_id = max(v for _, v in tokenizer._tokenizer.get_vocab(keep_added_token_positions).items())
