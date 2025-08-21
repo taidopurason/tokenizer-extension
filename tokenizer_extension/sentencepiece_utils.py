@@ -40,9 +40,6 @@ BYTE_VOCAB = {'<0x00>', '<0x01>', '<0x02>', '<0x03>', '<0x04>', '<0x05>', '<0x06
               '<0xE6>', '<0xE7>', '<0xE8>', '<0xE9>', '<0xEA>', '<0xEB>', '<0xEC>', '<0xED>', '<0xEE>', '<0xEF>',
               '<0xF0>', '<0xF1>', '<0xF2>', '<0xF3>', '<0xF4>', '<0xF5>', '<0xF6>', '<0xF7>', '<0xF8>', '<0xF9>',
               '<0xFA>', '<0xFB>', '<0xFC>', '<0xFD>', '<0xFE>', '<0xFF>'}
-NUMBERS = {
-    '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'
-}
 
 
 @dataclass
@@ -155,49 +152,6 @@ def get_token_script(token: str, prev: Optional[str] = None):
         script = current
 
     return script
-
-
-def group_tokens_legacy(text, tokenizer, separate_numbers=True, byte_fallback=True, special_tokens=None):
-    separate_tokens = set()
-    if special_tokens is None:
-        special_tokens = SPECIAL
-    separate_tokens.update(special_tokens)
-
-    if byte_fallback:
-        separate_tokens.update(BYTE_VOCAB)
-
-    if separate_numbers:
-        separate_tokens.update(NUMBERS)
-
-    new_words = tokenizer.tokenize(text)
-    grouped_new_words = []
-    group = []
-
-    prev_script = None
-
-    for x in new_words:
-        if x in separate_tokens:
-            if len(group) > 0:
-                grouped_new_words.append(group)
-                group = []
-            grouped_new_words.append([x])
-            prev_script = None
-            continue
-
-        token_script = get_token_script(x, prev=prev_script)
-
-        if x.startswith(START_SYMBOL) or (prev_script is not None and token_script != prev_script):
-            if len(group) > 0:
-                grouped_new_words.append(group)
-                group = []
-        group.append(x)
-
-        prev_script = token_script
-
-    if len(group) > 0:
-        grouped_new_words.append(group)
-
-    return list(map(tuple, grouped_new_words))
 
 
 def read_model(path: str):

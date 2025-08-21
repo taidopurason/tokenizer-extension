@@ -85,25 +85,20 @@ def train_vocab_extension(
         extension_size: int,
         is_sentencepiece: bool = False,
         max_token_length: Optional[int] = None,
-        sp_legacy_implementation: bool = True,
         sp_kwargs: Optional[dict] = None,
-):
+) -> dict:
     split_freqs = defaultdict(int)
     check_token = lambda a, b: True
 
     for text in tqdm(corpus, desc="computing frequencies"):
         if is_sentencepiece:
-            if sp_legacy_implementation:
-                from .sentencepiece_utils import group_tokens_legacy as group_tokens_sentencepiece
-                grouped_tokens = group_tokens_sentencepiece(text, tokenizer)
-            else:
-                from .sentencepiece_utils import group_tokens as group_tokens_sentencepiece
-                from .sentencepiece_utils import TrainerSpec, is_valid_merge
-                if sp_kwargs is None:
-                    sp_kwargs = {}
-                cfg = TrainerSpec(**sp_kwargs)
-                check_token = lambda a, b: is_valid_merge(a, b, cfg)
-                grouped_tokens = group_tokens_sentencepiece(text, tokenizer, **sp_kwargs)
+            from .sentencepiece_utils import group_tokens as group_tokens_sentencepiece
+            from .sentencepiece_utils import TrainerSpec, is_valid_merge
+            if sp_kwargs is None:
+                sp_kwargs = {}
+            cfg = TrainerSpec(**sp_kwargs)
+            check_token = lambda a, b: is_valid_merge(a, b, cfg)
+            grouped_tokens = group_tokens_sentencepiece(text, tokenizer, **sp_kwargs)
         else:
             grouped_tokens = group_tokens(text, tokenizer)
 
