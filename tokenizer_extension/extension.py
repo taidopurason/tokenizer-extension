@@ -4,7 +4,8 @@ from typing import Optional, List, Tuple, Dict, Union
 from tokenizers import pre_tokenizers
 from transformers.convert_slow_tokenizer import generate_merges
 
-from .utils import get_ordered_vocab, get_vocab_and_merges, replace_tokenizer_vocab_merges, get_added_tokens_vocab
+from .utils import get_ordered_vocab, get_vocab_and_merges, replace_tokenizer_vocab_merges, get_added_tokens_vocab, \
+    update_postprocessor_special_tokens
 
 
 def get_vocab_scores(
@@ -115,6 +116,8 @@ def extend_tokenizer(
                 raise ValueError("Added token and extended vocabulary have tokens with the same indices")
             ext_vocab[token] = idx
     tokenizer = replace_tokenizer_vocab_merges(tokenizer, ext_vocab, ext_merges)
+    if not keep_added_token_positions:
+        tokenizer = update_postprocessor_special_tokens(tokenizer)
     if len(set(tokenizer.get_vocab().keys())) != len(set(tokenizer.get_vocab().values())):
         raise ValueError("Tokens with the same ID found in vocabulary.")
     return tokenizer
