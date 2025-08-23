@@ -22,7 +22,6 @@ def extend_model(
         is_sentencepiece: bool = False,
         required_sp_coverage: Optional[float] = None,
         nfkc_normalize: bool = False,
-        sp_legacy_implementation: bool = True,
         max_token_length: Optional[int] = None,
 ):
     train_docs = load_from_disk(input_path)["text"]
@@ -52,7 +51,6 @@ def extend_model(
         extension_size=vocab_size,
         is_sentencepiece=is_sentencepiece,
         max_token_length=max_token_length,
-        sp_legacy_implementation=sp_legacy_implementation,
     )
     if ext_coverage_vocab is not None:
         cov_vocab = get_ordered_vocab(ext_coverage_vocab)

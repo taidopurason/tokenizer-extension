@@ -27,7 +27,6 @@ def train_pruner(
     )
     start = time.time()
 
-
     pruning_orders = calculate_orders(
         train_docs,
         tokenizer,
@@ -42,7 +41,6 @@ def train_pruner(
     if "_merge_counts" in pruning_orders:
         pruning_orders["_merge_counts"] = {" ".join(k): v for k, v in pruning_orders["_merge_counts"].items()}
     write_json(pruning_orders, os.path.join(output_path, "pruning_order.json"))
-
 
 
 if __name__ == "__main__":

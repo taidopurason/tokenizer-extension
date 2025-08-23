@@ -163,15 +163,15 @@ def read_model(path: str):
 
 
 def train_sentencepiece_from_model(
-        pretrained_model_path: str,
-        input: str,
+        tokenizer_path: str,
+        input_path: str,
         vocab_size: int = 64000,
         model_prefix: str = "sp_model",
         num_threads: int = 16,
 ):
     import sentencepiece as spm
 
-    model = read_model(pretrained_model_path)
+    model = read_model(tokenizer_path)
     config = {x[0].name: getattr(model.trainer_spec, x[0].name) for x in model.trainer_spec.ListFields()}
     assert config["model_type"] == 2
     kwargs = {
@@ -188,7 +188,7 @@ def train_sentencepiece_from_model(
     print(f"Training SentencePiece model with the following parameters: {kwargs}", flush=True)
 
     spm.SentencePieceTrainer.train(
-        input=input,
+        input=input_path,
         model_prefix=model_prefix,
         vocab_size=vocab_size,
         num_threads=num_threads,
@@ -205,7 +205,7 @@ def read_sentencepiece_vocab(path: str) -> list:
         return [line.split()[0] for line in f]
 
 
-def extend_vocab(tokenizer_prefix, extension_vocab, out_prefix, n_tokens=None):
+def extend_sp_model(tokenizer_prefix, extension_vocab, out_prefix, n_tokens=None):
     from sentencepiece.sentencepiece_model_pb2 import ModelProto
     model = read_model(f"{tokenizer_prefix}.model")
 
