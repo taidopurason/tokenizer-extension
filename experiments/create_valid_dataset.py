@@ -23,16 +23,18 @@ def get_fineweb_ds(lang="ekk_Latn", streaming=True):
         extra_shuffle_args = {"buffer_size": 1000}
 
     if lang == "eng_Latn":
-        ds = load_dataset("HuggingFaceFW/fineweb", "sample-10BT", split="train", streaming=streaming)
+        ds = load_dataset(
+            "HuggingFaceFW/fineweb", "sample-10BT", split="train", streaming=streaming
+        ).shuffle(seed=42, **extra_shuffle_args).take(10000)
     else:
-        ds = load_dataset("HuggingFaceFW/fineweb-2", lang, split="train", streaming=streaming)
+        ds = load_dataset("HuggingFaceFW/fineweb-2", lang, split="test", streaming=streaming)
 
-    return ds.shuffle(seed=42, **extra_shuffle_args).take(10000)
+    return ds
 
 
 def create_valid_ds(
         output_dir: str,
-        dataset: str = "culturax",
+        dataset: str = "fineweb",
         lang: str = "et",
         streaming: bool = True
 ):
