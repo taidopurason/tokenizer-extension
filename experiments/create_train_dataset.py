@@ -37,7 +37,7 @@ def create_budget_ds(
         output_dir: str,
         char_budget=1_000_000_000,
         dataset: str = "fineweb",
-        lang: str = "et",
+        lang: str = "ekk_Latn",
         streaming: bool = True
 ):
     logging.info(f"Creating budget dataset with {char_budget} characters")
