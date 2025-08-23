@@ -4,7 +4,7 @@ import sys
 
 from transformers import AutoTokenizer
 
-from tokenizer_extension.extension import extend_tokenizer
+from tokenizer_extension.extension import extend_tokenizer, extend_sp_model
 from tokenizer_extension.utils import read_json, get_vocab_and_merges
 
 
@@ -44,7 +44,6 @@ def extend(
 
     if tokenizer_implementation == "sentencepiece":
         is_sentencepiece = True
-        from tokenizer_extension.sentencepiece_utils import extend_sp_model
         extend_sp_model(
             tokenizer_prefix=tokenizer_path,
             extension_vocab=new_vocab,
