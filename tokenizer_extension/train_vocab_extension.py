@@ -90,7 +90,7 @@ def train_vocab_extension(
     split_freqs = defaultdict(int)
     check_token = lambda a, b: True
 
-    for text in tqdm(corpus, desc="computing frequencies"):
+    for text in tqdm(corpus, desc="computing frequencies", mininterval=1):
         if is_sentencepiece:
             from .sentencepiece_utils import group_tokens as group_tokens_sentencepiece
             from .sentencepiece_utils import TrainerSpec, is_valid_merge
@@ -137,7 +137,8 @@ def train_vocab_extension(
             if new_token not in vocab:
                 vocab[new_token] = len(vocab)
 
-            pbar.n = len(vocab)
-            pbar.refresh()
+            if len(vocab) % 100 == 0 or len(vocab) == vocab_size:
+                pbar.n = len(vocab)
+                pbar.refresh()
 
     return {"vocab": vocab, "merges": merges, "pair_freqs": pair_freqs, "word_freqs": word_freqs}

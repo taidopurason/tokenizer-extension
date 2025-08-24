@@ -91,7 +91,7 @@ def extend_tokenizer(
         generate_new_merges: bool = False,
         prepend_merges: bool = False,
         alphabet: List[str] = None,
-        keep_added_token_positions: bool = True
+        keep_added_token_positions: bool = False
 ):
     vocab, merges = get_vocab_and_merges(tokenizer)
     max_token_id = max(v for _, v in tokenizer._tokenizer.get_vocab(keep_added_token_positions).items())

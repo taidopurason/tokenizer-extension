@@ -30,7 +30,9 @@ def extend_model(
     tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
 
     ext_coverage_vocab = None
-    if is_sentencepiece and required_sp_coverage is not None:
+    if required_sp_coverage is not None:
+        if not is_sentencepiece:
+            raise ValueError("Coverage extension can only be trained for SentencePiece models")
         logging.info("Training coverage extension")
         vocab, _ = get_vocab_and_merges(tokenizer)
         ext_coverage_vocab = train_coverage_extension(
