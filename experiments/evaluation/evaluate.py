@@ -34,9 +34,9 @@ def load_fineweb_heldout_data(lang, limit=10000):
     if lang in FINEWEB_CACHE:
         return FINEWEB_CACHE[lang]
 
-    ds = get_fineweb_ds(lang)
+    ds = [x["text"] for x in get_fineweb_ds(lang)]
     if limit is not None:
-        ds = list(ds.take(limit)["text"])
+        ds = ds[:limit]
 
     FINEWEB_CACHE[lang] = ds
     return ds
