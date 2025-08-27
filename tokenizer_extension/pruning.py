@@ -1,5 +1,6 @@
 import json
 from itertools import islice
+from typing import List, Optional
 
 from tokenizers import Tokenizer
 
@@ -7,7 +8,13 @@ from .utils import update_postprocessor_special_tokens, get_vocab_and_merges, ge
 
 
 def prune_tokenizer(
-        tokenizer, prune_ordered_tokens, n, ignore_added=True, ignore_special=True, ignore_tokens=None, verbose=False
+        tokenizer,
+        prune_ordered_tokens: List[str],
+        n: Optional[int] = None,
+        ignore_added: bool = True,
+        ignore_special: bool =True,
+        ignore_tokens: List[str] = None,
+        verbose: bool = False
 ):
     cfg = json.loads(tokenizer._tokenizer.to_str())
     full_vocab = tokenizer._tokenizer.get_vocab(True)
@@ -24,7 +31,7 @@ def prune_tokenizer(
         ignore_vocab.update(get_added_tokens_vocab(tokenizer, special_only=not ignore_added))
 
     tokens_to_prune = set(islice([x for x in prune_ordered_tokens if x not in ignore_vocab], n))
-    if len(tokens_to_prune) < n:
+    if n is not None and len(tokens_to_prune) < n:
         raise ValueError(f"Not enough tokens to prune, {len(tokens_to_prune)} < {n}")
 
     cfg["model"]["merges"] = [" ".join(m) for m in merges if
