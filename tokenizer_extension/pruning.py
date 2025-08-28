@@ -12,7 +12,7 @@ def prune_tokenizer(
         prune_ordered_tokens: List[str],
         n: Optional[int] = None,
         ignore_added: bool = True,
-        ignore_special: bool =True,
+        ignore_special: bool = True,
         ignore_tokens: List[str] = None,
         verbose: bool = False
 ):
@@ -25,17 +25,26 @@ def prune_tokenizer(
         ignore_vocab.update({t: full_vocab[t] for t in ignore_tokens})
 
     if ignore_special or ignore_added:
+        ignore_vocab.update({
+            x: full_vocab[x]
+            for x in [tokenizer.unk_token, tokenizer.eos_token, tokenizer.bos_token, tokenizer.pad_token]
+            if x is not None
+        })
+
         if not ignore_special:
             raise ValueError(
-                "Added tokens can only be ignored along with special tokens, please set ignore_special=False")
+                "Added tokens can only be ignored along with special tokens, please set ignore_special=True"
+            )
         ignore_vocab.update(get_added_tokens_vocab(tokenizer, special_only=not ignore_added))
 
     tokens_to_prune = set(islice([x for x in prune_ordered_tokens if x not in ignore_vocab], n))
     if n is not None and len(tokens_to_prune) < n:
         raise ValueError(f"Not enough tokens to prune, {len(tokens_to_prune)} < {n}")
 
-    cfg["model"]["merges"] = [" ".join(m) for m in merges if
-                              all(t not in tokens_to_prune for t in m) and "".join(m) not in tokens_to_prune]
+    cfg["model"]["merges"] = [
+        " ".join(m) for m in merges
+        if all(t not in tokens_to_prune for t in m) and "".join(m) not in tokens_to_prune
+    ]
     new_vocab_tokens = [k for k in get_ordered_vocab(full_vocab) if k not in tokens_to_prune]
     new_full_vocab = {k: i for i, k in enumerate(new_vocab_tokens)}
     cfg["model"]["vocab"] = {k: new_full_vocab[k] for k in vocab if k in new_full_vocab}

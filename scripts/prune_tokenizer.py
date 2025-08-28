@@ -17,9 +17,6 @@ def prune(
 ):
     logging.info(f"Pruning with {prune_order_name} from {prune_order_path} ({n_tokens}): {tokenizer_path}")
     tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
-    ignore_tokens = list(filter(lambda x: x is not None,
-                                [tokenizer.unk_token, tokenizer.eos_token, tokenizer.bos_token, tokenizer.pad_token]
-                                ))
     vocab = read_json(os.path.join(prune_order_path, "pruning_order.json"))[prune_order_name]
 
     tokenizer = prune_tokenizer(
@@ -29,7 +26,6 @@ def prune(
         verbose=False,
         ignore_special=True,
         ignore_added=True,
-        ignore_tokens=ignore_tokens
     )
     logging.info(f"Saving pruned tokenizer to {output_path}")
     tokenizer.save_pretrained(output_path)
