@@ -6,7 +6,7 @@ from typing import Optional
 
 from transformers import AutoTokenizer
 
-from tokenizer_extension.pruning_order import calculate_orders
+from tokenizer_extension.pruning import calculate_orders
 from tokenizer_extension.utils import write_json
 from datasets import load_from_disk
 

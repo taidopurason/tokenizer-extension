@@ -23,7 +23,6 @@ def prune(
         tokenizer,
         vocab,
         n_tokens,
-        verbose=False,
         ignore_special=True,
         ignore_added=True,
     )
