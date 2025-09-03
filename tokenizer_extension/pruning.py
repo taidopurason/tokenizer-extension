@@ -177,6 +177,15 @@ class TrainablePruner(Pruner):
         return self.prune(tokenizer, n)
 
 
+class PretrainedPruner(Pruner):
+    def __init__(self, prune_ordered_tokens: List[str]):
+        super().__init__()
+        self.prune_ordered_tokens = prune_ordered_tokens
+
+    def _get_pruning_order(self, tokenizer) -> List[str]:
+        return self.prune_ordered_tokens
+
+
 class LastNPruner(Pruner):
     def _get_pruning_order(self, tokenizer) -> List[str]:
         full_vocab = tokenizer._tokenizer.get_vocab(True)
