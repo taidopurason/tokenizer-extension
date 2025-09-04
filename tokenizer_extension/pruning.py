@@ -166,6 +166,7 @@ class TrainablePruner(Pruner):
     def train(self, tokenizer, training_data: List[str]):
         self.prune_ordered_tokens = self._train_pruning_order(tokenizer, training_data)
         self.is_trained = True
+        return self
 
     def _get_pruning_order(self, tokenizer) -> List[str]:
         if not self.is_trained:
@@ -201,8 +202,8 @@ class ScriptPruner(Pruner):
         super().__init__()
         if icu is None:
             raise ImportError("icu module is required for script pruning")
-        self.allowed_scripts = set(allowed_scripts)
-        self.forbidden_scripts = set(forbidden_scripts)
+        self.allowed_scripts = set(allowed_scripts) if allowed_scripts is not None else None
+        self.forbidden_scripts = set(forbidden_scripts) if forbidden_scripts is not None else None
 
     @staticmethod
     def icu_script_filter(text: str, allowed_scripts=None, forbidden_scripts=None) -> bool:
