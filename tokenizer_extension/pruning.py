@@ -239,26 +239,26 @@ class LatinCyrillicScriptPruner(ScriptPruner):
         super().__init__(allowed_scripts={"Cyrillic", "Latin", "Common", "Inherited"})
 
 
-def calculate_token_frequency(data, tokenizer) -> Dict[str, int]:
+def calculate_token_frequency(tokenizer, texts) -> Dict[str, int]:
     token_freqs = {t: 0 for t in tokenizer._tokenizer.get_vocab(True)}
-    for text in tqdm(data, miniters=len(data) // 100):
+    for text in tqdm(texts, miniters=len(texts) // 100):
         for token in tokenizer.tokenize(text):
             token_freqs[token] += 1
     return token_freqs
 
 
 def calculate_frequency_order(tokenizer, texts) -> List[str]:
-    token_counts = calculate_token_frequency(texts, tokenizer)
+    token_counts = calculate_token_frequency(tokenizer=tokenizer, texts=texts)
     full_vocab = tokenizer._tokenizer.get_vocab(True)
     return [tok for tok, _ in sorted(token_counts.items(), key=lambda x: (x[1], -full_vocab[x[0]]))]
 
 
 class FrequencyPruner(TrainablePruner):
     def _train_pruning_order(self, tokenizer, training_data: List[str]) -> List[str]:
-        return calculate_frequency_order(tokenizer, training_data)
+        return calculate_frequency_order(tokenizer=tokenizer, texts=training_data)
 
 
-def calculate_merge_statistics(texts, tokenizer, ignore_merges=None):
+def calculate_merge_statistics(tokenizer, texts, ignore_merges=None):
     vocab, merges = get_vocab_and_merges(tokenizer)
     if ignore_merges is None:
         ignore_merges = tokenizer._tokenizer.model.ignore_merges
@@ -312,7 +312,7 @@ class MergeBasedPruner(TrainablePruner):
     def _train_pruning_order(self, tokenizer, training_data: List[str]) -> List[str]:
         full_vocab = tokenizer._tokenizer.get_vocab(True)
         token_counts, merge_counts = calculate_merge_statistics(
-            training_data, tokenizer, ignore_merges=self.ignore_merges
+            tokenizer=tokenizer, texts=training_data, ignore_merges=self.ignore_merges
         )
         self._token_counts = token_counts
         self._merge_counts = merge_counts
@@ -323,8 +323,8 @@ class MergeBasedPruner(TrainablePruner):
 
 # For comparing different pruning orders, we can use the following code:
 def calculate_orders(
-        texts,
         tokenizer,
+        texts,
         calculate_token_frequency=False,
         calculate_merge_based_pruning=False,
         ignore_merges=None,

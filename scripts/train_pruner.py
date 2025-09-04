@@ -28,8 +28,8 @@ def train_pruner(
     start = time.time()
 
     pruning_orders = calculate_orders(
-        texts=train_docs,
         tokenizer=tokenizer,
+        texts=train_docs,
         calculate_token_frequency=calculate_token_frequency,
         calculate_merge_based_pruning=calculate_merge_based_pruning,
         ignore_merges=ignore_merges,
