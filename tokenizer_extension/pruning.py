@@ -247,8 +247,8 @@ def calculate_token_frequency(data, tokenizer) -> Dict[str, int]:
     return token_freqs
 
 
-def calculate_frequency_order(tokenizer, train_data) -> List[str]:
-    token_counts = calculate_token_frequency(train_data, tokenizer)
+def calculate_frequency_order(tokenizer, texts) -> List[str]:
+    token_counts = calculate_token_frequency(texts, tokenizer)
     full_vocab = tokenizer._tokenizer.get_vocab(True)
     return [tok for tok, _ in sorted(token_counts.items(), key=lambda x: (x[1], -full_vocab[x[0]]))]
 
@@ -339,12 +339,12 @@ def calculate_orders(
     # another tokenization step on the whole dataset
     if calculate_token_frequency:
         logging.info("Calculating HF token frequency")
-        orders["token_frequency"] = calculate_frequency_order(texts, tokenizer)
+        orders["token_frequency"] = calculate_frequency_order(tokenizer=tokenizer, texts=texts)
 
     # tokenize the whole dataset
     if calculate_merge_based_pruning:
         logging.info("Calculating merge statistics")
-        token_counts, merge_counts = calculate_merge_statistics(texts, tokenizer, ignore_merges=ignore_merges)
+        token_counts, merge_counts = calculate_merge_statistics(tokenizer=tokenizer, texts=texts, ignore_merges=ignore_merges)
         logging.info("Calculating orders")
         orders["least_used_token"] = merge_based_pruning_order(
             vocab=full_vocab, token_counts=token_counts, merge_counts=merge_counts
