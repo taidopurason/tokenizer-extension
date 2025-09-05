@@ -1,6 +1,5 @@
 import json
 from collections import defaultdict
-from itertools import islice
 from typing import List, Optional, Iterable, Dict
 import logging
 
@@ -48,28 +47,11 @@ def filter_special_tokens(
     return [x for x in tokens if x not in ignore_vocab]
 
 
-def prune_tokenizer(
-        tokenizer,
-        prune_ordered_tokens: List[str],
-        n: Optional[int] = None,
-        ignore_added: bool = True,
-        ignore_special: bool = True,
-        ignore_tokens: List[str] = None,
-):
+def _prune_tokenizer(tokenizer, tokens_to_prune: Iterable[str]):
+    tokens_to_prune = set(tokens_to_prune)
     cfg = json.loads(tokenizer._tokenizer.to_str())
     full_vocab = tokenizer._tokenizer.get_vocab(True)
     vocab, merges = get_vocab_and_merges(tokenizer)
-
-    tokens_to_prune = set(islice(filter_special_tokens(
-        tokenizer,
-        prune_ordered_tokens,
-        ignore_added=ignore_added,
-        ignore_special=ignore_special,
-        ignore_tokens=ignore_tokens
-    ), n))
-
-    if n is not None and len(tokens_to_prune) < n:
-        raise ValueError(f"Not enough tokens to prune, {len(tokens_to_prune)} < {n}")
 
     cfg["model"]["merges"] = [
         " ".join(m) for m in merges
@@ -111,7 +93,7 @@ class Pruner:
             ignore_added: bool = True,
             ignore_special: bool = True,
             ignore_tokens: Optional[List[str]] = None
-    ):
+    ) -> List[str]:
         return filter_special_tokens(
             tokenizer,
             self.get_raw_pruning_order(tokenizer),
@@ -130,13 +112,14 @@ class Pruner:
     ):
         tokens_to_prune = self.get_pruning_order(
             tokenizer, ignore_added=ignore_added, ignore_special=ignore_special, ignore_tokens=ignore_tokens
-        )
-        prune_tokenizer(
+        )[:n]
+
+        if n is not None and len(tokens_to_prune) < n:
+            raise ValueError(f"Not enough tokens to prune, {len(tokens_to_prune)} < {n}")
+
+        _prune_tokenizer(
             tokenizer=tokenizer,
-            prune_ordered_tokens=tokens_to_prune,
-            n=n,
-            ignore_added=False,
-            ignore_special=False,
+            tokens_to_prune=tokens_to_prune,
         )
         return tokenizer
 
@@ -185,6 +168,20 @@ class PretrainedPruner(Pruner):
 
     def get_raw_pruning_order(self, tokenizer) -> List[str]:
         return self.prune_ordered_tokens
+
+
+# Legacy implementation
+def prune_tokenizer(
+        tokenizer,
+        prune_ordered_tokens: List[str],
+        n: Optional[int] = None,
+        ignore_added: bool = True,
+        ignore_special: bool = True,
+        ignore_tokens: List[str] = None,
+):
+    return PretrainedPruner(prune_ordered_tokens=prune_ordered_tokens).prune(
+        tokenizer=tokenizer, n=n, ignore_added=ignore_added, ignore_special=ignore_special, ignore_tokens=ignore_tokens
+    )
 
 
 class LastNPruner(Pruner):
@@ -322,6 +319,7 @@ class MergeBasedPruner(TrainablePruner):
         )
 
 
+# Legacy implementation
 def calculate_orders(
         tokenizer,
         texts,
@@ -330,31 +328,22 @@ def calculate_orders(
         ignore_merges=None,
         return_counts=False
 ):
-    _, merges = get_vocab_and_merges(tokenizer)
-    full_vocab = tokenizer._tokenizer.get_vocab(True)
     orders = {
-        "last_n": list(reversed(get_ordered_vocab(full_vocab)))
+        "last_n": LastNPruner().get_raw_pruning_order(tokenizer=tokenizer)
     }
 
     # another tokenization step on the whole dataset
     if calculate_token_frequency:
         logging.info("Calculating HF token frequency")
-        orders["token_frequency"] = calculate_frequency_order(tokenizer=tokenizer, texts=texts)
+        orders["token_frequency"] = FrequencyPruner().train(tokenizer, texts).get_raw_pruning_order(tokenizer=tokenizer)
 
     # tokenize the whole dataset
     if calculate_merge_based_pruning:
-        logging.info("Calculating merge statistics")
-        token_counts, merge_counts = calculate_merge_statistics(tokenizer=tokenizer, texts=texts,
-                                                                ignore_merges=ignore_merges)
-        logging.info("Calculating orders")
-        orders["least_used_token"] = merge_based_pruning_order(
-            vocab=full_vocab, token_counts=token_counts, merge_counts=merge_counts
-        )
-        orders["_token_frequency"] = [
-            tok for tok, _ in sorted(token_counts.items(), key=lambda x: (x[1], -full_vocab[x[0]]))
-        ]
+        logging.info("Calculating merge order")
+        merge_pruner = MergeBasedPruner().train(tokenizer, texts)
+        orders["least_used_token"] = merge_pruner.get_raw_pruning_order(tokenizer=tokenizer)
         if return_counts:
-            orders["_token_counts"] = token_counts
-            orders["_merge_counts"] = merge_counts
+            orders["_token_counts"] = merge_pruner._token_counts
+            orders["_merge_counts"] = merge_pruner._merge_counts
 
     return orders
