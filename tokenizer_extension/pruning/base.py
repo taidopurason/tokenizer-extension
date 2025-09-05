@@ -1,19 +1,12 @@
 import json
-from collections import defaultdict
 from typing import List, Optional, Iterable, Dict
 import logging
 
 from tokenizers import Tokenizer
 from tqdm import tqdm
 
-from tokenizer_extension.iterative_tokenizer import IterativeTokenizer
 from tokenizer_extension.utils import update_postprocessor_special_tokens, get_vocab_and_merges, get_ordered_vocab, \
     get_added_tokens_vocab
-
-try:
-    import icu
-except ImportError:
-    icu = None
 
 logger = logging.getLogger("tokenizer_extension.pruning")
 
@@ -170,71 +163,10 @@ class PretrainedPruner(Pruner):
         return self.prune_ordered_tokens
 
 
-# Legacy implementation
-def prune_tokenizer(
-        tokenizer,
-        prune_ordered_tokens: List[str],
-        n: Optional[int] = None,
-        ignore_added: bool = True,
-        ignore_special: bool = True,
-        ignore_tokens: List[str] = None,
-):
-    return PretrainedPruner(prune_ordered_tokens=prune_ordered_tokens).prune(
-        tokenizer=tokenizer, n=n, ignore_added=ignore_added, ignore_special=ignore_special, ignore_tokens=ignore_tokens
-    )
-
-
 class LastNPruner(Pruner):
     def get_raw_pruning_order(self, tokenizer) -> List[str]:
         full_vocab = tokenizer._tokenizer.get_vocab(True)
         return list(reversed(get_ordered_vocab(full_vocab)))
-
-
-class ScriptPruner(Pruner):
-    def __init__(
-            self,
-            allowed_scripts: Optional[Iterable[str]] = None,
-            forbidden_scripts: Optional[Iterable[str]] = None
-    ):
-        super().__init__()
-        if icu is None:
-            raise ImportError("icu module is required for script pruning")
-        self.allowed_scripts = set(allowed_scripts) if allowed_scripts is not None else None
-        self.forbidden_scripts = set(forbidden_scripts) if forbidden_scripts is not None else None
-
-    @staticmethod
-    def icu_script_filter(text: str, allowed_scripts=None, forbidden_scripts=None) -> bool:
-        scripts = [icu.Script.getScript(x).getName() for x in text]
-
-        if allowed_scripts is not None and not all([script in allowed_scripts for script in scripts]):
-            return False
-
-        if forbidden_scripts is not None and any([script in forbidden_scripts for script in scripts]):
-            return False
-
-        return True
-
-    def get_raw_pruning_order(self, tokenizer) -> List[str]:
-        vocab = tokenizer.get_vocab()
-        tokens_to_remove = [
-            x for x in reversed(get_ordered_vocab(vocab))
-            if not self.icu_script_filter(
-                tokenizer.decode(vocab[x]),
-                allowed_scripts=self.allowed_scripts,
-                forbidden_scripts=self.forbidden_scripts
-            )
-        ]
-        return tokens_to_remove
-
-
-class LatinScriptPruner(ScriptPruner):
-    def __init__(self):
-        super().__init__(allowed_scripts={"Latin", "Common", "Inherited"})
-
-
-class LatinCyrillicScriptPruner(ScriptPruner):
-    def __init__(self):
-        super().__init__(allowed_scripts={"Cyrillic", "Latin", "Common", "Inherited"})
 
 
 def calculate_token_frequency(tokenizer, texts) -> Dict[str, int]:
@@ -254,96 +186,3 @@ def calculate_frequency_order(tokenizer, texts) -> List[str]:
 class FrequencyPruner(TrainablePruner):
     def _train_pruning_order(self, tokenizer, training_data: List[str]) -> List[str]:
         return calculate_frequency_order(tokenizer=tokenizer, texts=training_data)
-
-
-def calculate_merge_statistics(tokenizer, texts, ignore_merges=None):
-    vocab, merges = get_vocab_and_merges(tokenizer)
-    if ignore_merges is None:
-        ignore_merges = tokenizer._tokenizer.model.ignore_merges
-
-    step_tokenizer = IterativeTokenizer(
-        vocab, merges, ignore_merges=ignore_merges, byte_fallback=tokenizer._tokenizer.model.byte_fallback,
-        unk_token=tokenizer._tokenizer.model.unk_token
-    )
-
-    merge_counts = {m: 0 for m in merges}
-    full_vocab = tokenizer._tokenizer.get_vocab(True)
-    token_counts = {t: 0 for t in full_vocab}
-
-    pre_tokenizer = tokenizer._tokenizer.pre_tokenizer
-    normalizer = tokenizer._tokenizer.normalizer
-    normalize_func = normalizer.normalize_str if normalizer is not None else lambda x: x
-    for text in tqdm(texts, miniters=len(texts) // 100):
-        pre_tokenized_str = pre_tokenizer.pre_tokenize_str(normalize_func(text))
-        for word, _ in pre_tokenized_str:
-            step_tokens = None
-            for step, merge in step_tokenizer.tokenize_iteratively(word):
-                step_tokens = step_tokenizer.word_to_tokens(step)
-                merge_result = step_tokenizer.merge_id_to_token(merge)
-                if merge_result is not None:
-                    merge_counts[merge_result[0]] += 1
-
-            if step_tokens is None:
-                raise ValueError(f"No tokens returned by tokenizer for word {word}")
-            for t in step_tokens:
-                token_counts[t] += 1
-
-    return token_counts, merge_counts
-
-
-def merge_based_pruning_order(vocab, token_counts, merge_counts):
-    token_counts = defaultdict(int, token_counts)
-    for m, freq in merge_counts.items():
-        for t in m:
-            token_counts[t] += freq
-
-    return [tok for tok, _ in sorted(token_counts.items(), key=lambda x: (x[1], -vocab[x[0]]))]
-
-
-class MergeBasedPruner(TrainablePruner):
-    def __init__(self, ignore_merges: bool = None):
-        super().__init__()
-        self.ignore_merges = ignore_merges
-        self._token_counts = None
-        self._merge_counts = None
-
-    def _train_pruning_order(self, tokenizer, training_data: List[str]) -> List[str]:
-        full_vocab = tokenizer._tokenizer.get_vocab(True)
-        token_counts, merge_counts = calculate_merge_statistics(
-            tokenizer=tokenizer, texts=training_data, ignore_merges=self.ignore_merges
-        )
-        self._token_counts = token_counts
-        self._merge_counts = merge_counts
-        return merge_based_pruning_order(
-            vocab=full_vocab, token_counts=token_counts, merge_counts=merge_counts
-        )
-
-
-# Legacy implementation
-def calculate_orders(
-        tokenizer,
-        texts,
-        calculate_token_frequency=False,
-        calculate_merge_based_pruning=False,
-        ignore_merges=None,
-        return_counts=False
-):
-    orders = {
-        "last_n": LastNPruner().get_raw_pruning_order(tokenizer=tokenizer)
-    }
-
-    # another tokenization step on the whole dataset
-    if calculate_token_frequency:
-        logging.info("Calculating HF token frequency")
-        orders["token_frequency"] = FrequencyPruner().train(tokenizer, texts).get_raw_pruning_order(tokenizer=tokenizer)
-
-    # tokenize the whole dataset
-    if calculate_merge_based_pruning:
-        logging.info("Calculating merge order")
-        merge_pruner = MergeBasedPruner().train(tokenizer, texts)
-        orders["least_used_token"] = merge_pruner.get_raw_pruning_order(tokenizer=tokenizer)
-        if return_counts:
-            orders["_token_counts"] = merge_pruner._token_counts
-            orders["_merge_counts"] = merge_pruner._merge_counts
-
-    return orders
