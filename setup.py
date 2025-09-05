@@ -18,9 +18,11 @@ setup(
         "nltk",
         "sentencepiece",
         "fire",
-        "PyICU",
         "matplotlib",
         "seaborn",
         "protobuf==3.20.*"
     ],
+    extras_require={
+        "full": ["PyICU"],
+    },
 )
