@@ -173,9 +173,23 @@ class TrainablePruner(Pruner):
             raise ValueError("Pruner is not trained yet")
         return self.prune_ordered_tokens
 
-    def train_prune(self, tokenizer, training_data: List[str], n: Optional[int]):
+    def train_prune(
+            self,
+            tokenizer,
+            training_data: List[str],
+            n: Optional[int],
+            ignore_added: bool = True,
+            ignore_special: bool = True,
+            ignore_tokens: Optional[List[str]] = None
+    ):
         self.train(tokenizer, training_data)
-        return self.prune(tokenizer, n)
+        return self.prune(
+            tokenizer=tokenizer,
+            n=n,
+            ignore_added=ignore_added,
+            ignore_special=ignore_special,
+            ignore_tokens=ignore_tokens
+        )
 
 
 class PretrainedPruner(Pruner):
@@ -322,7 +336,6 @@ class MergeBasedPruner(TrainablePruner):
         )
 
 
-# For comparing different pruning orders, we can use the following code:
 def calculate_orders(
         tokenizer,
         texts,
@@ -345,7 +358,8 @@ def calculate_orders(
     # tokenize the whole dataset
     if calculate_merge_based_pruning:
         logging.info("Calculating merge statistics")
-        token_counts, merge_counts = calculate_merge_statistics(tokenizer=tokenizer, texts=texts, ignore_merges=ignore_merges)
+        token_counts, merge_counts = calculate_merge_statistics(tokenizer=tokenizer, texts=texts,
+                                                                ignore_merges=ignore_merges)
         logging.info("Calculating orders")
         orders["least_used_token"] = merge_based_pruning_order(
             vocab=full_vocab, token_counts=token_counts, merge_counts=merge_counts
