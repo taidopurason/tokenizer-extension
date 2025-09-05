@@ -6,7 +6,7 @@ from tokenizers import Tokenizer
 from tqdm import tqdm
 
 from tokenizer_extension.utils import update_postprocessor_special_tokens, get_vocab_and_merges, get_ordered_vocab, \
-    get_added_tokens_vocab
+    get_added_tokens_vocab, read_json, write_json
 
 logger = logging.getLogger("tokenizer_extension.pruning")
 
@@ -119,20 +119,18 @@ class Pruner:
 
 class TrainablePruner(Pruner):
     def __init__(self):
-        self.is_trained = False
-        self.prune_ordered_tokens = []
+        self.prune_ordered_tokens = None
 
     def _train_pruning_order(self, tokenizer, training_data: List[str]) -> List[str]:
         raise NotImplementedError()
 
     def train(self, tokenizer, training_data: List[str]):
         self.prune_ordered_tokens = self._train_pruning_order(tokenizer, training_data)
-        self.is_trained = True
         return self
 
-    def get_raw_pruning_order(self, tokenizer) -> List[str]:
-        if not self.is_trained:
-            raise ValueError("Pruner is not trained yet")
+    def get_raw_pruning_order(self, tokenizer=None) -> List[str]:
+        if self.prune_ordered_tokens is None:
+            raise ValueError("Pruner is not trained yet.")
         return self.prune_ordered_tokens
 
     def train_prune(
@@ -153,6 +151,9 @@ class TrainablePruner(Pruner):
             ignore_tokens=ignore_tokens
         )
 
+    def save(self, path: str):
+        write_json(self.prune_ordered_tokens, path)
+
 
 class PretrainedPruner(Pruner):
     def __init__(self, prune_ordered_tokens: List[str]):
@@ -161,6 +162,14 @@ class PretrainedPruner(Pruner):
 
     def get_raw_pruning_order(self, tokenizer) -> List[str]:
         return self.prune_ordered_tokens
+
+    @classmethod
+    def load(cls, path: str):
+        tokens = read_json(path)
+        return cls(prune_ordered_tokens=tokens)
+
+    def save(self, path: str):
+        write_json(self.prune_ordered_tokens, path)
 
 
 class LastNPruner(Pruner):
