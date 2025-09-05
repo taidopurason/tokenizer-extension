@@ -101,22 +101,8 @@ def prune_tokenizer(
     return tokenizer
 
 
-def prune_tokenizer_last(tokenizer, n, ignore_added=True, ignore_special=True, ignore_tokens=None, verbose=False):
-    full_vocab = tokenizer._tokenizer.get_vocab(True)
-    reverse_ordered_vocab = list(reversed(get_ordered_vocab(full_vocab)))
-    return prune_tokenizer(
-        tokenizer,
-        reverse_ordered_vocab,
-        n,
-        ignore_added=ignore_added,
-        ignore_special=ignore_special,
-        ignore_tokens=ignore_tokens,
-        verbose=verbose
-    )
-
-
 class Pruner:
-    def _get_pruning_order(self, tokenizer) -> List[str]:
+    def get_raw_pruning_order(self, tokenizer) -> List[str]:
         raise NotImplementedError()
 
     def get_pruning_order(
@@ -128,7 +114,7 @@ class Pruner:
     ):
         return filter_special_tokens(
             tokenizer,
-            self._get_pruning_order(tokenizer),
+            self.get_raw_pruning_order(tokenizer),
             ignore_added=ignore_added,
             ignore_special=ignore_special,
             ignore_tokens=ignore_tokens,
@@ -168,7 +154,7 @@ class TrainablePruner(Pruner):
         self.is_trained = True
         return self
 
-    def _get_pruning_order(self, tokenizer) -> List[str]:
+    def get_raw_pruning_order(self, tokenizer) -> List[str]:
         if not self.is_trained:
             raise ValueError("Pruner is not trained yet")
         return self.prune_ordered_tokens
@@ -197,12 +183,12 @@ class PretrainedPruner(Pruner):
         super().__init__()
         self.prune_ordered_tokens = prune_ordered_tokens
 
-    def _get_pruning_order(self, tokenizer) -> List[str]:
+    def get_raw_pruning_order(self, tokenizer) -> List[str]:
         return self.prune_ordered_tokens
 
 
 class LastNPruner(Pruner):
-    def _get_pruning_order(self, tokenizer) -> List[str]:
+    def get_raw_pruning_order(self, tokenizer) -> List[str]:
         full_vocab = tokenizer._tokenizer.get_vocab(True)
         return list(reversed(get_ordered_vocab(full_vocab)))
 
@@ -231,7 +217,7 @@ class ScriptPruner(Pruner):
 
         return True
 
-    def _get_pruning_order(self, tokenizer) -> List[str]:
+    def get_raw_pruning_order(self, tokenizer) -> List[str]:
         vocab = tokenizer.get_vocab()
         tokens_to_remove = [
             x for x in reversed(get_ordered_vocab(vocab))
