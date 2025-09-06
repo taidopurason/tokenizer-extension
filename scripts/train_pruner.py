@@ -6,41 +6,36 @@ from typing import Optional
 
 from transformers import AutoTokenizer
 
-from tokenizer_extension.pruning import calculate_orders
-from tokenizer_extension.utils import write_json
+from tokenizer_extension.pruning import PRUNER_REGISTRY, TrainablePrunerBase
 from datasets import load_from_disk
 
 
 def train_pruner(
-        input_path: str,
         output_path: str,
         tokenizer_path: str,
-        calculate_token_frequency: bool = True,
-        calculate_merge_based_pruning: bool = True,
-        return_counts: bool = True,
-        ignore_merges: Optional[bool] = None,
+        pruner_name: str,
+        input_path: Optional[str] = None,
 ):
-    train_docs = load_from_disk(input_path)["text"]
+    if input_path is not None:
+        train_docs = load_from_disk(input_path)["text"]
+    else:
+        train_docs = None
+
     tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
     logging.info(
         f"Calculating pruning orders {tokenizer_path} and saving to {output_path}"
     )
     start = time.time()
+    if pruner_name not in PRUNER_REGISTRY:
+        raise ValueError(f"Unknown pruner: {pruner_name}. Available pruners: {list(PRUNER_REGISTRY.keys())}")
+    pruner = PRUNER_REGISTRY[pruner_name]()
+    if isinstance(pruner, TrainablePrunerBase) and train_docs is None:
+        raise ValueError(f"Pruner {pruner_name} requires training data, but no input_path was provided")
 
-    pruning_orders = calculate_orders(
-        tokenizer=tokenizer,
-        texts=train_docs,
-        calculate_token_frequency=calculate_token_frequency,
-        calculate_merge_based_pruning=calculate_merge_based_pruning,
-        ignore_merges=ignore_merges,
-        return_counts=return_counts
-    )
+    pruner.train(tokenizer, train_docs).save(output_path)
 
     end = time.time()
     logging.info(f"Calculation took {end - start} seconds")
-    if "_merge_counts" in pruning_orders:
-        pruning_orders["_merge_counts"] = {" ".join(k): v for k, v in pruning_orders["_merge_counts"].items()}
-    write_json(pruning_orders, os.path.join(output_path, "pruning_order.json"))
 
 
 if __name__ == "__main__":

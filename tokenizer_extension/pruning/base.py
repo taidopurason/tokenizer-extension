@@ -1,6 +1,10 @@
 import json
-from typing import List, Optional, Iterable, Dict
+import warnings
+from itertools import islice
+from typing import List, Optional, Iterable, Dict, Type
 import logging
+
+from abc import ABC, ABCMeta, abstractmethod
 
 from tokenizers import Tokenizer
 from tqdm import tqdm
@@ -40,7 +44,7 @@ def filter_special_tokens(
     return [x for x in tokens if x not in ignore_vocab]
 
 
-def _prune_tokenizer(tokenizer, tokens_to_prune: Iterable[str]):
+def tokenizer_remove_tokens_inplace(tokenizer, tokens_to_prune: Iterable[str]):
     tokens_to_prune = set(tokens_to_prune)
     cfg = json.loads(tokenizer._tokenizer.to_str())
     full_vocab = tokenizer._tokenizer.get_vocab(True)
@@ -76,24 +80,54 @@ def _prune_tokenizer(tokenizer, tokens_to_prune: Iterable[str]):
     return tokenizer
 
 
-class Pruner:
-    def get_raw_pruning_order(self, tokenizer) -> List[str]:
+class PrunerBase(ABC):
+    def __init__(self):
+        self._pruning_order = None
+
+    @property
+    def is_trained(self):
+        return self._pruning_order is not None
+
+    @abstractmethod
+    def calculate_pruning_order(self, tokenizer, training_data: Optional[List[str]]) -> List[str]:
         raise NotImplementedError()
 
-    def get_pruning_order(
+    def train(self, tokenizer, training_data: Optional[List[str]]):
+        if self.is_trained:
+            raise ValueError("Pruner is already trained.")
+        self._pruning_order = self.calculate_pruning_order(tokenizer, training_data)
+        return self
+
+    @property
+    def raw_pruning_order(self) -> List[str]:
+        if not self.is_trained:
+            raise ValueError("Pruner is not trained yet.")
+        return self._pruning_order
+
+    def save(self, path: str):
+        write_json({
+            "name": self.__class__.__name__,
+            "prune_order": self.raw_pruning_order
+        }, path)
+
+    def get_tokens_to_prune(
             self,
             tokenizer,
+            n: Optional[int] = None,
             ignore_added: bool = True,
             ignore_special: bool = True,
             ignore_tokens: Optional[List[str]] = None
     ) -> List[str]:
-        return filter_special_tokens(
+        tokens_to_prune = list(islice(filter_special_tokens(
             tokenizer,
-            self.get_raw_pruning_order(tokenizer),
+            self.raw_pruning_order,
             ignore_added=ignore_added,
             ignore_special=ignore_special,
             ignore_tokens=ignore_tokens,
-        )
+        ), n))
+        if n is not None and len(tokens_to_prune) < n:
+            raise ValueError(f"Not enough tokens to prune, {len(tokens_to_prune)} < {n}")
+        return tokens_to_prune
 
     def prune(
             self,
@@ -103,41 +137,20 @@ class Pruner:
             ignore_special: bool = True,
             ignore_tokens: Optional[List[str]] = None
     ):
-        tokens_to_prune = self.get_pruning_order(
-            tokenizer, ignore_added=ignore_added, ignore_special=ignore_special, ignore_tokens=ignore_tokens
-        )[:n]
-
-        if n is not None and len(tokens_to_prune) < n:
-            raise ValueError(f"Not enough tokens to prune, {len(tokens_to_prune)} < {n}")
-
-        _prune_tokenizer(
+        tokens_to_prune = self.get_tokens_to_prune(
+            tokenizer, n=n, ignore_added=ignore_added, ignore_special=ignore_special, ignore_tokens=ignore_tokens
+        )
+        tokenizer_remove_tokens_inplace(
             tokenizer=tokenizer,
             tokens_to_prune=tokens_to_prune,
         )
         return tokenizer
 
-
-class TrainablePruner(Pruner):
-    def __init__(self):
-        self.prune_ordered_tokens = None
-
-    def _train_pruning_order(self, tokenizer, training_data: List[str]) -> List[str]:
-        raise NotImplementedError()
-
-    def train(self, tokenizer, training_data: List[str]):
-        self.prune_ordered_tokens = self._train_pruning_order(tokenizer, training_data)
-        return self
-
-    def get_raw_pruning_order(self, tokenizer=None) -> List[str]:
-        if self.prune_ordered_tokens is None:
-            raise ValueError("Pruner is not trained yet.")
-        return self.prune_ordered_tokens
-
     def train_prune(
             self,
             tokenizer,
-            training_data: List[str],
-            n: Optional[int],
+            training_data: Optional[List[str]] = None,
+            n: Optional[int] = None,
             ignore_added: bool = True,
             ignore_special: bool = True,
             ignore_tokens: Optional[List[str]] = None
@@ -151,29 +164,64 @@ class TrainablePruner(Pruner):
             ignore_tokens=ignore_tokens
         )
 
-    def save(self, path: str):
-        write_json(self.prune_ordered_tokens, path)
+
+PRUNER_REGISTRY: Dict[str, Type[PrunerBase]] = {}
 
 
-class PretrainedPruner(Pruner):
-    def __init__(self, prune_ordered_tokens: List[str]):
+def register_pruner(name: Optional[str] = None):
+    def decorator(pruner_class: Type[PrunerBase]):
+        reg_name = name or pruner_class.__name__
+        PRUNER_REGISTRY[reg_name] = pruner_class
+        return pruner_class
+
+    return decorator
+
+
+class TrainablePrunerBase(PrunerBase, metaclass=ABCMeta):
+    def train(self, tokenizer, training_data: List[str]):
+        if training_data is None:
+            raise ValueError("Training data must be provided for TrainablePruner.")
+        return super().train(tokenizer, training_data)
+
+
+class StaticPrunerBase(PrunerBase, metaclass=ABCMeta):
+    def train(self, tokenizer, training_data: Optional[List[str]] = None):
+        if training_data is not None:
+            warnings.warn("Training data is ignored for this pruner class.")
+        return super().train(tokenizer, training_data)
+
+
+class PretrainedPruner(PrunerBase):
+    def __init__(self, pruning_order: List[str], name: Optional[str] = None):
         super().__init__()
-        self.prune_ordered_tokens = prune_ordered_tokens
+        self._pruning_order = pruning_order
+        self.name = name
 
-    def get_raw_pruning_order(self, tokenizer) -> List[str]:
-        return self.prune_ordered_tokens
+    def calculate_pruning_order(self, tokenizer, training_data: Optional[List[str]]) -> List[str]:
+        return self._pruning_order
 
     @classmethod
     def load(cls, path: str):
-        tokens = read_json(path)
-        return cls(prune_ordered_tokens=tokens)
-
-    def save(self, path: str):
-        write_json(self.prune_ordered_tokens, path)
+        pruner_json = read_json(path)
+        return cls(pruning_order=pruner_json["prune_order"], name=pruner_json.get("name", None))
 
 
-class LastNPruner(Pruner):
-    def get_raw_pruning_order(self, tokenizer) -> List[str]:
+def prune_tokenizer(
+        tokenizer,
+        prune_ordered_tokens: List[str],
+        n: Optional[int] = None,
+        ignore_added: bool = True,
+        ignore_special: bool = True,
+        ignore_tokens: List[str] = None,
+):
+    return PretrainedPruner(pruning_order=prune_ordered_tokens).prune(
+        tokenizer=tokenizer, n=n, ignore_added=ignore_added, ignore_special=ignore_special, ignore_tokens=ignore_tokens
+    )
+
+
+@register_pruner("last_n")
+class LastNPruner(StaticPrunerBase):
+    def calculate_pruning_order(self, tokenizer, training_data=None) -> List[str]:
         full_vocab = tokenizer._tokenizer.get_vocab(True)
         return list(reversed(get_ordered_vocab(full_vocab)))
 
@@ -191,7 +239,7 @@ def calculate_frequency_order(tokenizer, texts) -> List[str]:
     full_vocab = tokenizer._tokenizer.get_vocab(True)
     return [tok for tok, _ in sorted(token_counts.items(), key=lambda x: (x[1], -full_vocab[x[0]]))]
 
-
-class FrequencyPruner(TrainablePruner):
-    def _train_pruning_order(self, tokenizer, training_data: List[str]) -> List[str]:
+@register_pruner("frequency")
+class FrequencyPruner(TrainablePrunerBase):
+    def calculate_pruning_order(self, tokenizer, training_data: List[str]) -> List[str]:
         return calculate_frequency_order(tokenizer=tokenizer, texts=training_data)

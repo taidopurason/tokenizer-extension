@@ -1,7 +1,7 @@
 from typing import Optional, Iterable, List
 
-from .base import Pruner
-from ..utils import get_ordered_vocab
+from .base import StaticPrunerBase, register_pruner
+from tokenizer_extension.utils import get_ordered_vocab
 
 try:
     import icu
@@ -9,7 +9,8 @@ except ImportError:
     icu = None
 
 
-class ScriptPruner(Pruner):
+@register_pruner("script")
+class ScriptPruner(StaticPrunerBase):
     def __init__(
             self,
             allowed_scripts: Optional[Iterable[str]] = None,
@@ -33,7 +34,7 @@ class ScriptPruner(Pruner):
 
         return True
 
-    def get_raw_pruning_order(self, tokenizer) -> List[str]:
+    def calculate_pruning_order(self, tokenizer, training_data=None) -> List[str]:
         vocab = tokenizer.get_vocab()
         tokens_to_remove = [
             x for x in reversed(get_ordered_vocab(vocab))
@@ -46,11 +47,13 @@ class ScriptPruner(Pruner):
         return tokens_to_remove
 
 
+@register_pruner("latin_script")
 class LatinScriptPruner(ScriptPruner):
     def __init__(self):
         super().__init__(allowed_scripts={"Latin", "Common", "Inherited"})
 
 
+@register_pruner("latin_cyrillic_script")
 class LatinCyrillicScriptPruner(ScriptPruner):
     def __init__(self):
         super().__init__(allowed_scripts={"Cyrillic", "Latin", "Common", "Inherited"})

@@ -5,7 +5,7 @@ from tqdm import tqdm
 
 from tokenizer_extension.iterative_tokenizer import IterativeTokenizer
 from tokenizer_extension.utils import get_vocab_and_merges
-from .base import TrainablePruner
+from .base import TrainablePrunerBase, register_pruner
 
 
 def calculate_merge_statistics(tokenizer, texts, ignore_merges=None):
@@ -52,14 +52,15 @@ def merge_based_pruning_order(vocab, token_counts, merge_counts):
     return [tok for tok, _ in sorted(token_counts.items(), key=lambda x: (x[1], -vocab[x[0]]))]
 
 
-class MergeBasedPruner(TrainablePruner):
+@register_pruner("merge_based")
+class MergeBasedPruner(TrainablePrunerBase):
     def __init__(self, ignore_merges: bool = None):
         super().__init__()
         self.ignore_merges = ignore_merges
         self._token_counts = None
         self._merge_counts = None
 
-    def _train_pruning_order(self, tokenizer, training_data: List[str]) -> List[str]:
+    def calculate_pruning_order(self, tokenizer, training_data: List[str]) -> List[str]:
         full_vocab = tokenizer._tokenizer.get_vocab(True)
         token_counts, merge_counts = calculate_merge_statistics(
             tokenizer=tokenizer, texts=training_data, ignore_merges=self.ignore_merges
