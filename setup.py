@@ -20,7 +20,8 @@ setup(
         "fire",
         "matplotlib",
         "seaborn",
-        "protobuf==3.20.*"
+        "protobuf==3.20.*",
+        "heapdict"
     ],
     extras_require={
         "full": ["PyICU"],
