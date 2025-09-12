@@ -8,8 +8,8 @@ from typing import List, Dict, Optional
 
 
 def compute_token_frequencies(
-        tokenizer: AutoTokenizer,
-        corpus: List[str],
+    tokenizer: AutoTokenizer,
+    corpus: List[str],
 ) -> Dict[int, int]:
     counts = Counter()
     for text in corpus:
@@ -18,8 +18,8 @@ def compute_token_frequencies(
 
 
 def leaf_pruning_order_id(
-        tokenizer: AutoTokenizer,
-):
+    tokenizer: AutoTokenizer,
+) -> List[int]:
     vocab, merges = get_vocab_and_merges(tokenizer)
     leaves = set()
     atomics = set(vocab.values())
@@ -28,6 +28,8 @@ def leaf_pruning_order_id(
     for left, right in merges:
         left_index, right_index = vocab[left], vocab[right]
         token_index = vocab[left + right]
+        if token_index in token_splits or not(token_index > left_index and token_index > right_index):
+            continue
         atomics.discard(token_index)
         leaves.discard(left_index)
         leaves.discard(right_index)
@@ -50,9 +52,9 @@ def leaf_pruning_order_id(
 
 
 def leaf_pruning_order_frequency(
-        tokenizer: AutoTokenizer,
-        corpus: List[str],
-):
+    tokenizer: AutoTokenizer,
+    corpus: List[str],
+) -> List[int]:
     vocab, merges = get_vocab_and_merges(tokenizer)
     frequencies = compute_token_frequencies(tokenizer, corpus)
     frequencies = defaultdict(int, frequencies)
@@ -63,6 +65,8 @@ def leaf_pruning_order_frequency(
     for left, right in merges:
         left_index, right_index = vocab[left], vocab[right]
         token_index = vocab[left + right]
+        if token_index in token_splits or not(token_index > left_index and token_index > right_index):
+            continue
         atomics.discard(token_index)
         leaves.discard(left_index)
         leaves.discard(right_index)
