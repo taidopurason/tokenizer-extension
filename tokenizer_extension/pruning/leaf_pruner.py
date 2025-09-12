@@ -2,6 +2,7 @@ from transformers import AutoTokenizer
 
 from tokenizer_extension.pruning import TrainablePrunerBase, StaticPrunerBase, register_pruner
 from tokenizer_extension.utils import get_vocab_and_merges
+from tokenizer_extension.iterative_tokenizer import IterativeTokenizer
 from collections import defaultdict, Counter
 from heapdict import heapdict
 from typing import List, Dict, Optional
@@ -17,37 +18,55 @@ def compute_token_frequencies(
     return dict(counts)
 
 
+def get_vocabulary_structure(vocab, merges):
+    it = IterativeTokenizer(vocab, merges)
+    unreachable_tokens = find_unreachable_tokens_tokenization(tokenizer)
+    unreachable_int = set([vocab[i] for i in unreachable_tokens])
+    atomics = set(vocab.values()) - unreachable_int
+    token_splits = dict()
+    leaves = set([vocab[token] for token in unreachable_tokens])
+    downstream_merges = defaultdict(int)
+    for token in vocab.keys():
+        for _, merge in it.tokenize_iteratively(token):
+            if merge is None:
+                continue
+            (left_index, right_index), token_index = merge
+            assert token_index not in token_splits or token_splits[token_index] == [left_index, right_index]
+            if token_index in token_splits:
+                continue
+            atomics.discard(token_index)
+            leaves.discard(left_index)
+            leaves.discard(right_index)
+            leaves.add(token_index)
+            token_splits[token_index] = [left_index, right_index]
+            downstream_merges[left_index] += 1
+            downstream_merges[right_index] += 1
+    return atomics, leaves, downstream_merges, token_splits
+
+
 def leaf_pruning_order_id(
     tokenizer: AutoTokenizer,
 ) -> List[int]:
     vocab, merges = get_vocab_and_merges(tokenizer)
-    leaves = set()
-    atomics = set(vocab.values())
-    token_splits = dict()
-    downstream_merges = defaultdict(int)
-    for left, right in merges:
-        left_index, right_index = vocab[left], vocab[right]
-        token_index = vocab[left + right]
-        if token_index in token_splits or not(token_index > left_index and token_index > right_index):
-            continue
-        atomics.discard(token_index)
-        leaves.discard(left_index)
-        leaves.discard(right_index)
-        leaves.add(token_index)
-        token_splits[token_index] = [left_index, right_index]
-        downstream_merges[left_index] += 1
-        downstream_merges[right_index] += 1
+    atomics, leaves, downstream_merges, token_splits = get_vocabulary_structure(vocab, merges)
     pruning_order = []
-    for i in sorted(vocab.values(), reverse=True):
-        if i in atomics or i not in leaves: continue
-        left, right = token_splits[i]
-        downstream_merges[left] -= 1
-        if not downstream_merges[left]:
-            leaves.add(left)
-        downstream_merges[right] -= 1
-        if not downstream_merges[right]:
-            leaves.add(right)
-        pruning_order.append(i)
+    queue = heapdict()
+    for token in leaves:
+        queue[token] = -token
+    while queue:
+        token, _ = queue.popitem()
+        if token in atomics or token not in leaves: continue
+        if token in token_splits:
+            left, right = token_splits[token]
+            downstream_merges[left] -= 1
+            if not downstream_merges[left]:
+                leaves.add(left)
+                queue[left] = -left
+            downstream_merges[right] -= 1
+            if not downstream_merges[right]:
+                leaves.add(right)
+                queue[right] = -right
+        pruning_order.append(token)
     return pruning_order
 
 
@@ -55,45 +74,33 @@ def leaf_pruning_order_frequency(
     tokenizer: AutoTokenizer,
     corpus: List[str],
 ) -> List[int]:
-    vocab, merges = get_vocab_and_merges(tokenizer)
+    original_value = tokenizer._tokenizer.model.ignore_merges
+    tokenizer._tokenizer.model.ignore_merges = False
     frequencies = compute_token_frequencies(tokenizer, corpus)
     frequencies = defaultdict(int, frequencies)
-    leaves = set()
-    atomics = set(vocab.values())
-    token_splits = dict()
-    downstream_merges = defaultdict(int)
-    for left, right in merges:
-        left_index, right_index = vocab[left], vocab[right]
-        token_index = vocab[left + right]
-        if token_index in token_splits or not(token_index > left_index and token_index > right_index):
-            continue
-        atomics.discard(token_index)
-        leaves.discard(left_index)
-        leaves.discard(right_index)
-        leaves.add(token_index)
-        token_splits[token_index] = [left_index, right_index]
-        downstream_merges[left_index] += 1
-        downstream_merges[right_index] += 1
+    atomics, leaves, downstream_merges, token_splits = get_vocabulary_structure(vocab, merges)
     queue = heapdict()
     for token in leaves:
-        queue[token] = frequencies[token]
+        queue[token] = (frequencies[token], -token)
     pruning_order = []
     while queue:
-        token, freq = queue.popitem()
+        token, (freq, _) = queue.popitem()
         if token in atomics or token not in leaves: continue
-        left, right = token_splits[token]
-        frequencies[left] += frequencies[token]
-        frequencies[right] += frequencies[token]
-        frequencies[token] = 0
-        downstream_merges[left] -= 1
-        if not downstream_merges[left]:
-            leaves.add(left)
-            queue[left] = frequencies[left]
-        downstream_merges[right] -= 1
-        if not downstream_merges[right]:
-            leaves.add(right)
-            queue[right] = frequencies[right]
+        if token in token_splits:
+            left, right = token_splits[token]
+            frequencies[left] += frequencies[token]
+            frequencies[right] += frequencies[token]
+            frequencies[token] = 0
+            downstream_merges[left] -= 1
+            if not downstream_merges[left]:
+                leaves.add(left)
+                queue[left] = (frequencies[left], -left)
+            downstream_merges[right] -= 1
+            if not downstream_merges[right]:
+                leaves.add(right)
+                queue[right] = (frequencies[right], -right)
         pruning_order.append(token)
+    tokenizer._tokenizer.model.ignore_merges = original_value
     return pruning_order
 
 
