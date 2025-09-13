@@ -1,5 +1,6 @@
 from transformers import AutoTokenizer
 
+from tokenizer_extension.benchmarking import find_unreachable_tokens_tokenization
 from tokenizer_extension.pruning import TrainablePrunerBase, StaticPrunerBase, register_pruner
 from tokenizer_extension.utils import get_vocab_and_merges
 from tokenizer_extension.iterative_tokenizer import IterativeTokenizer
@@ -18,7 +19,7 @@ def compute_token_frequencies(
     return dict(counts)
 
 
-def get_vocabulary_structure(vocab, merges):
+def get_vocabulary_structure(tokenizer, vocab, merges):
     it = IterativeTokenizer(vocab, merges)
     unreachable_tokens = find_unreachable_tokens_tokenization(tokenizer)
     unreachable_int = set([vocab[i] for i in unreachable_tokens])
@@ -48,7 +49,7 @@ def leaf_pruning_order_id(
     tokenizer: AutoTokenizer,
 ) -> List[int]:
     vocab, merges = get_vocab_and_merges(tokenizer)
-    atomics, leaves, downstream_merges, token_splits = get_vocabulary_structure(vocab, merges)
+    atomics, leaves, downstream_merges, token_splits = get_vocabulary_structure(tokenizer, vocab, merges)
     pruning_order = []
     queue = heapdict()
     for token in leaves:
@@ -78,7 +79,8 @@ def leaf_pruning_order_frequency(
     tokenizer._tokenizer.model.ignore_merges = False
     frequencies = compute_token_frequencies(tokenizer, corpus)
     frequencies = defaultdict(int, frequencies)
-    atomics, leaves, downstream_merges, token_splits = get_vocabulary_structure(vocab, merges)
+    vocab, merges = get_vocab_and_merges(tokenizer)
+    atomics, leaves, downstream_merges, token_splits = get_vocabulary_structure(tokenizer, vocab, merges)
     queue = heapdict()
     for token in leaves:
         queue[token] = (frequencies[token], -token)
