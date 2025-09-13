@@ -23,14 +23,11 @@ def get_fineweb_ds(lang="ekk_Latn", streaming=True):
         extra_shuffle_args = {"buffer_size": 1000}
 
     if lang == "eng_Latn":
-        ds = load_dataset(
-            "HuggingFaceFW/fineweb", "sample-10BT", split="train", streaming=streaming
-        ).shuffle(seed=42, **extra_shuffle_args).skip(10000)
+        ds = load_dataset("HuggingFaceFW/fineweb", "sample-10BT", split="train", streaming=streaming)
     else:
-        ds = load_dataset(
-            "HuggingFaceFW/fineweb-2", lang, split="train", streaming=streaming
-        ).shuffle(seed=42, **extra_shuffle_args)
-    return ds
+        ds = load_dataset("HuggingFaceFW/fineweb-2", lang, split="train", streaming=streaming)
+
+    return ds.shuffle(seed=42, **extra_shuffle_args).skip(10000)
 
 
 def create_budget_ds(
