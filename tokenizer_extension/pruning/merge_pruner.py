@@ -49,7 +49,7 @@ def merge_based_pruning_order(vocab, token_counts, merge_counts):
         for t in m:
             token_counts[t] += freq
 
-    return [tok for tok, _ in sorted(token_counts.items(), key=lambda x: (x[1], -vocab[x[0]]))]
+    return [tok for tok, _ in sorted(token_counts.items(), key=lambda x: (x[1], -len(x[0]), -vocab[x[0]]))]
 
 
 @register_pruner("merge_based")
