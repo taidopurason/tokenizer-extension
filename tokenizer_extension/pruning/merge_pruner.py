@@ -1,5 +1,5 @@
 from collections import defaultdict
-from typing import List
+from typing import List, Optional
 
 from tqdm import tqdm
 
@@ -54,7 +54,7 @@ def merge_based_pruning_order(vocab, token_counts, merge_counts):
 
 @register_pruner("merge_based")
 class MergeBasedPruner(TrainablePrunerBase):
-    def __init__(self, ignore_merges: bool = None):
+    def __init__(self, ignore_merges: Optional[bool] = False):
         super().__init__()
         self.ignore_merges = ignore_merges
         self._token_counts = None
