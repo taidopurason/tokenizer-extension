@@ -6,24 +6,18 @@ setup(
     packages=find_packages(),
     install_requires=[
         "transformers>=4.44.0",
-        "tokenizers==0.20.0",
+        "tokenizers>=0.20.0",
         "datasets>=2.21.0",
-        "tiktoken>=0.7.0",
-        "conllu",
         "numpy",
-        "dask",
         "pandas",
         "tqdm",
         "requests",
-        "nltk",
         "sentencepiece",
         "fire",
-        "matplotlib",
-        "seaborn",
         "protobuf==3.20.*",
         "heapdict"
     ],
     extras_require={
-        "full": ["PyICU"],
+        "full": ["PyICU", "tokenization-scorer", "conllu", "dask", "matplotlib", "seaborn", "tiktoken>=0.7.0",],
     },
 )
