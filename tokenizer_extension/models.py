@@ -88,7 +88,7 @@ def modify_embeddings(
     model,
     old_tokenizer,
     new_tokenizer,
-    init_method=None,
+    init_method="mean_of_constituents",
     ignore_size_mismatch: bool = False
 ):
     # Clone previous weights before resizing
