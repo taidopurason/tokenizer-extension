@@ -33,7 +33,7 @@ python -u ${SCRIPT_DIR}/train_from_scratch.py \
   --input_path="${DATA_DIR}/${dataset_name}-${lang}/${budget}_hf" \
   --output_path="${FS_OUT_PATH}" \
   --tokenizer_path=${model_path} \
-  --vocab_size=64000 \
+  --vocab_size=64000
 
 
 for size in 1000 2000 4000 8000 16000 32000; do

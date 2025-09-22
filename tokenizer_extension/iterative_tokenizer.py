@@ -102,7 +102,8 @@ class Word:
 
 class IterativeTokenizer:
     def __init__(
-            self, vocab: Dict[str, int],
+            self,
+            vocab: Dict[str, int],
             merges: List[Tuple[str, str]],
             byte_fallback: bool = False,
             unk_token: Optional[str] = None,
