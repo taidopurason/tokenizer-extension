@@ -5,6 +5,11 @@ from tokenizers import pre_tokenizers
 from tokenizer_extension.utils import get_vocab_and_merges, get_added_tokens_vocab
 from tokenizer_extension.sentencepiece_utils import BYTE_VOCAB
 
+try:
+    from tokenization_scorer import score as tokenization_scorer
+except ImportError:
+    tokenization_scorer = None
+
 HF_BYTE_VOCAB = set(pre_tokenizers.ByteLevel.alphabet())
 SP_BYTE_VOCAB = set(BYTE_VOCAB)
 
@@ -102,7 +107,7 @@ def evaluate_tokenizer(
         ignore_empty: bool = True,
         extension_vocab: Optional[Dict[str, int]] = None,
         byte_vocab: Set[str] = None,
-        is_sentencepiece: bool = False
+        is_sentencepiece: bool = False,
 ) -> Dict[str, float]:
     total_tokens = 0
     total_chars = 0
@@ -154,17 +159,27 @@ def evaluate_tokenizer(
         "total_words": total_words,
         "total_bytes": total_bytes,
         "unknown_tokens": unknown_tokens,
-        "chars_per_token": total_chars / total_tokens if total_tokens else 0,
-        "tokens_per_char": total_tokens / total_chars if total_chars else 0,
-        "tokens_per_byte": total_tokens / total_bytes if total_bytes else 0,
-        "bytes_per_token": total_bytes / total_tokens if total_tokens else 0,
-        "words_per_token": total_words / total_tokens if total_tokens else 0,
-        "tokens_per_word": total_tokens / total_words if total_words else 0,
-        "tokens_per_sequence": total_tokens / total_examples if total_examples else 0,
-        "unknown_tokens_per_tokens": unknown_tokens / total_tokens if total_tokens else 0,
+        "chars_per_token": total_chars / total_tokens,
+        "tokens_per_char": total_tokens / total_chars,
+        "tokens_per_byte": total_tokens / total_bytes,
+        "bytes_per_token": total_bytes / total_tokens,
+        "words_per_token": total_words / total_tokens,
+        "tokens_per_word": total_tokens / total_words,
+        "tokens_per_sequence": total_tokens / total_examples,
+        "unknown_tokens_per_tokens": unknown_tokens / total_tokens,
         "extension_usage_rate": extension_utilisation,
         "vocab_usage_rate": vocab_utilisation,
         "total_extension_tokens": extensions_tokens,
-        "extension_tokens_per_token": extensions_tokens / total_tokens if total_tokens else 0,
-        "byte_fallback_rate": total_byte_fallbacks / total_tokens if total_tokens else 0,
+        "extension_tokens_per_token": extensions_tokens / total_tokens,
+        "byte_fallback_rate": total_byte_fallbacks / total_tokens,
     }
+
+
+def evaluate_renyi_entropy(
+        tokenizer,
+        data: Iterable[str],
+) -> float:
+    if tokenization_scorer is None:
+        raise ImportError("tokenization_scorer is not installed, cannot compute Renyi entropy.")
+    tokenized_text = [" ".join(tokenizer.tokenize(text)) for text in data]
+    return tokenization_scorer(tokenized_text, metric="renyi", power=2.5)
