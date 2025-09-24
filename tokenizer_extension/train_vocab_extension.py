@@ -53,26 +53,27 @@ def merge_pair(a, b, splits, word_freqs, pair_freqs, queue, where_to_update):
         while i < len(split) - 1:
             if split[i] == a and split[i + 1] == b:
                 new_token = a + b
-                if i > 0:
-                    updated_pairs[(split[i - 1], new_token)] += freq
-                    where_to_update[(split[i - 1], new_token)].add(word)
-                    updated_pairs[(split[i - 1], a)] -= freq
-                    where_to_update[(split[i - 1], a)].discard(word)
-                if i + 2 < len(split):
-                    updated_pairs[(new_token, split[i + 2])] += freq
-                    where_to_update[(new_token, split[i + 2])].add(word)
-                    updated_pairs[(b, split[i + 2])] -= freq
-                    where_to_update[(b, split[i + 2])].discard(word)
-
                 split = split[:i] + [new_token] + split[i + 2:]
             else:
                 i += 1
+
+        prev_pairs = list(zip(splits[word][:-1], splits[word][1:]))
         splits[word] = split
+        new_pairs = list(zip(splits[word][:-1], splits[word][1:]))
+        for pair in set(new_pairs) - set(prev_pairs):
+            where_to_update[pair].add(word)
+        for pair in set(prev_pairs) - set(new_pairs):
+            where_to_update[pair].discard(word)
+        for pair in prev_pairs:
+            updated_pairs[pair] -= freq
+        for pair in new_pairs:
+            updated_pairs[pair] += freq
 
     for pair, change in updated_pairs.items():
         new_freq = pair_freqs.get(pair, 0) + change
         pair_freqs[pair] = new_freq
-        heappush(queue, (-new_freq, pair))
+        if new_freq > 0:
+            heappush(queue, (-new_freq, pair))
 
     del pair_freqs[(a, b)]
     del where_to_update[(a, b)]
