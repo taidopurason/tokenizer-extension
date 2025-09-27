@@ -4,6 +4,7 @@ from typing import Iterable, Optional
 from tqdm import tqdm
 from heapq import heappush, heappop
 
+
 def group_tokens(text, tokenizer):
     pre_tokenizer = tokenizer._tokenizer.pre_tokenizer
     if tokenizer._tokenizer.pre_tokenizer is None:
@@ -89,20 +90,22 @@ def train_vocab_extension(
         sp_kwargs: Optional[dict] = None,
 ) -> dict:
     split_freqs = defaultdict(int)
-    check_token = lambda a, b: True
+
+    if is_sentencepiece:
+        from .sentencepiece_utils import group_tokens as group_tokens_sentencepiece
+        from .sentencepiece_utils import TrainerSpec, is_valid_merge
+        if sp_kwargs is None:
+            sp_kwargs = {}
+        cfg = TrainerSpec(**sp_kwargs)
+        check_token = lambda a, b: is_valid_merge(a, b, cfg)
+        group_tokens_func = lambda txt, tok: group_tokens_sentencepiece(txt, tok, **sp_kwargs)
+    else:
+        check_token = lambda a, b: True
+        group_tokens_func = group_tokens
+
 
     for text in tqdm(corpus, desc="computing frequencies", mininterval=1):
-        if is_sentencepiece:
-            from .sentencepiece_utils import group_tokens as group_tokens_sentencepiece
-            from .sentencepiece_utils import TrainerSpec, is_valid_merge
-            if sp_kwargs is None:
-                sp_kwargs = {}
-            cfg = TrainerSpec(**sp_kwargs)
-            check_token = lambda a, b: is_valid_merge(a, b, cfg)
-            grouped_tokens = group_tokens_sentencepiece(text, tokenizer, **sp_kwargs)
-        else:
-            grouped_tokens = group_tokens(text, tokenizer)
-
+        grouped_tokens = group_tokens_func(text, tokenizer)
         for word in grouped_tokens:
             split_freqs[word] += 1
 
