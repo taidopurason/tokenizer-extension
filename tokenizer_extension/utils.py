@@ -1,5 +1,6 @@
 import json
-from typing import Dict, List, Tuple
+import warnings
+from typing import Dict, List, Tuple, Optional
 
 from tokenizers import Tokenizer, AddedToken
 from tqdm import tqdm
@@ -104,3 +105,31 @@ def get_added_tokens_vocab(tokenizer, special_only=False) -> Dict[str, int]:
 def get_added_tokens_class(tokenizer, special_only=False) -> List[AddedToken]:
     return [AddedToken(**{k: v for k, v in x.items() if k != "id"}) for x in
             get_added_tokens(tokenizer, special_only=special_only)]
+
+
+class override_ignore_merges:
+    def __init__(self, tokenizer, new_value: Optional[bool]):
+        self.tokenizer = tokenizer
+        self.overide_value = new_value
+        self.has_ignore_merges = hasattr(tokenizer._tokenizer.model, "ignore_merges")
+
+        if self.has_ignore_merges:
+            self.original_value = tokenizer._tokenizer.model.ignore_merges
+        else:
+            warnings.warn("The tokenizer does not support ignore_merges. The context manager will have no effect.")
+            self.original_value = None
+
+    def change_value(self, new_value: Optional[bool]):
+        if self.has_ignore_merges and new_value is not None:
+            self.tokenizer._tokenizer.model.ignore_merges = new_value
+
+    def __enter__(self):
+        self.change_value(self.overide_value)
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.change_value(self.original_value)
+
+
+class disable_ignore_merges(override_ignore_merges):
+    def __init__(self, tokenizer):
+        super().__init__(tokenizer, new_value=False)
