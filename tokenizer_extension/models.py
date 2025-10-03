@@ -124,7 +124,7 @@ def modify_embeddings(
         modification_log["output"] = _modify_embedding_weights(
             model,
             output_embeddings,
-            previous_input_embeddings,
+            previous_output_embeddings,
             old_tokenizer,
             new_tokenizer,
             init_method=init_method,
