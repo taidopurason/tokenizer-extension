@@ -117,6 +117,7 @@ def evaluate_tokenizer(
     total_bytes = 0
     vocab = tokenizer.get_vocab()
     vocab_usage = {k: 0 for k in vocab}
+    total_bytes_per_tokens = 0
 
     if byte_vocab is None:
         byte_vocab = SP_BYTE_VOCAB if is_sentencepiece else HF_BYTE_VOCAB
@@ -136,8 +137,12 @@ def evaluate_tokenizer(
 
         for t in tokens:
             vocab_usage[t] += 1
-        total_tokens += len(tokens)
-        total_bytes += len(text.encode('utf-8'))
+
+        text_bytes = len(text.encode('utf-8'))
+        text_tokens = len(tokens)
+        total_tokens += text_tokens
+        total_bytes += text_bytes
+        total_bytes_per_tokens += text_bytes / text_tokens
         total_chars += len(text)
         total_words += len(text.split())
         total_examples += 1
@@ -163,6 +168,7 @@ def evaluate_tokenizer(
         "tokens_per_char": total_tokens / total_chars,
         "tokens_per_byte": total_tokens / total_bytes,
         "bytes_per_token": total_bytes / total_tokens,
+        "average_bytes_per_token": total_bytes_per_tokens / total_examples,
         "words_per_token": total_words / total_tokens,
         "tokens_per_word": total_tokens / total_words,
         "tokens_per_sequence": total_tokens / total_examples,
