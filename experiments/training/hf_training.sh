@@ -3,10 +3,10 @@ lang=$2
 model_name=$3
 model_path=$4
 budget=$5
+DATA_DIR=$6
+OUT_DIR=$7
 
-DATA_DIR="/gpfs/helios/home/taido/projects/tokenizer-extension/datasets"
-SCRIPT_DIR="/gpfs/helios/home/taido/projects/tokenizer-extension/scripts"
-OUT_DIR="/gpfs/helios/home/taido/projects/tokenizer-extension/results/exp_2"
+SCRIPT_DIR="../../scripts"
 mkdir -p ${OUT_DIR}
 
 EXT_OUT_PATH="${OUT_DIR}/${dataset_name}-${lang}/extension-${model_name}-${budget}"

@@ -2,18 +2,22 @@ import logging
 import os
 import sys
 from pathlib import Path
-from typing import List, Set
+from typing import List, Set, Optional
 
 import pandas as pd
 from transformers import AutoTokenizer
 
-from tokenizer_extension.benchmarking import evaluate_tokenizer, evaluate_tokenizer_self
+from tokenizer_extension.benchmarking import evaluate_tokenizer, evaluate_tokenizer_self, evaluate_renyi_entropy
 
 from tokenizer_extension.data import load_flores as _load_flores
 from datasets import load_dataset
 
+from tokenizer_extension.utils import override_ignore_merges
+
 flores_lang_map = {
-    "ekk_Latn": "est_Latn"
+    "ekk_Latn": "est_Latn",
+    "fas_Arab": "pes_Arab",
+    "cmn_Hani": "zho_Hans",
 }
 
 FINEWEB_CACHE = {}
@@ -65,20 +69,24 @@ def load_eval_datasets(lang, heldout=False):
 
 
 def run_benchmark(
-        tokenizer, lang: str, extension_vocab: Set[str] = None, is_sentencepiece: bool = False, heldout: bool = True
+        tokenizer, lang: str, extension_vocab: Set[str] = None, is_sentencepiece: bool = False, heldout: bool = True,
+        evaluate_renyi: bool = True, ignore_merges: Optional[bool] = None
 ):
     self_eval_results = evaluate_tokenizer_self(tokenizer, extension_vocab)
 
     full_results = []
-    for name, dss in load_eval_datasets(lang, heldout).items():
-        results = evaluate_tokenizer(
-            tokenizer, dss, extension_vocab=extension_vocab, is_sentencepiece=is_sentencepiece
-        )
-        full_results.append({
-            "dataset": name,
-            **self_eval_results,
-            **results
-        })
+    with override_ignore_merges(tokenizer, ignore_merges):
+        for name, dss in load_eval_datasets(lang, heldout).items():
+            results = evaluate_tokenizer(
+                tokenizer, dss, extension_vocab=extension_vocab, is_sentencepiece=is_sentencepiece,
+            )
+            if evaluate_renyi:
+                results["renyi_entropy"] = evaluate_renyi_entropy(tokenizer, dss)
+            full_results.append({
+                "dataset": name,
+                **self_eval_results,
+                **results,
+            })
     return full_results
 
 
@@ -86,6 +94,7 @@ model_dict = {
     "llama3": "meta-llama/Meta-Llama-3.1-8B",
     "llama2": "meta-llama/Llama-2-7b-hf",
     "mistralnemo": "mistralai/Mistral-Nemo-Base-2407",
+    "qwen25": "Qwen/Qwen2.5-3B-Instruct",
 }
 
 extension_method_map = {
@@ -98,12 +107,14 @@ def eval_language(
         lang: str,
         model_name: str,
         is_sentencepiece: bool,
+        experiment_path: str,
         out_dir: str = "scores",
         dataset_name: str = "fineweb",
         budget: int = 1000000000,
-        extension_values: List[int] = None,
+        extension_values: Optional[List[int]] = None,
         run_heldout_eval: bool = True,
-        experiment_path: str = "/gpfs/helios/home/taido/projects/tokenizer-extension/results/exp_2"
+        evaluate_renyi: bool = True,
+        ignore_merges: Optional[bool] = None
 ):
     if extension_values is None:
         extension_values = [0, 1000, 2000, 4000, 8000, 16000, 32000]
@@ -112,7 +123,8 @@ def eval_language(
 
     base_model = AutoTokenizer.from_pretrained(hf_model_name)
     baseline_score = run_benchmark(
-        base_model, lang=lang, extension_vocab=None, is_sentencepiece=is_sentencepiece, heldout=run_heldout_eval
+        base_model, lang=lang, extension_vocab=None, is_sentencepiece=is_sentencepiece, heldout=run_heldout_eval,
+        evaluate_renyi=evaluate_renyi, ignore_merges=ignore_merges
     )
 
     base_vocab_tokens = set(base_model.get_vocab())
@@ -131,7 +143,9 @@ def eval_language(
                 ext_vocab = ext_model_tokens - base_vocab_tokens
                 assert len(ext_vocab) == n_extension, f"Expected {n_extension} extension tokens, got {len(ext_vocab)}"
                 results = run_benchmark(extended_tokenizer, lang=lang, extension_vocab=ext_vocab,
-                                        is_sentencepiece=is_sentencepiece, heldout=run_heldout_eval)
+                                        is_sentencepiece=is_sentencepiece, heldout=run_heldout_eval,
+                                        evaluate_renyi=evaluate_renyi, ignore_merges=ignore_merges
+                                        )
             results = [
                 {
                     "tokenizer_name": f"{model_name}-{budget}-{extension_method}-{n_extension}",
