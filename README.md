@@ -28,6 +28,7 @@ from tokenizer_extension.utils import write_json
 
 
 tokenizer = AutoTokenizer.from_pretrained(BASE_TOKENIZER_PATH)
+# replace with your data:
 train_docs = ["This is a sample document.", "This is another document."]
 extension_tokens = train_vocab_extension(
     tokenizer=tokenizer,
@@ -52,7 +53,7 @@ from tokenizer_extension.utils import read_json
 new_vocab = read_json("vocab.json")
 new_merges = [tuple(x.split(" ")) for x in read_json("merges.json")]
 
-tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
+tokenizer = AutoTokenizer.from_pretrained(BASE_TOKENIZER_PATH)
 tokenizer = extend_tokenizer(
     tokenizer,
     new_vocab=new_vocab,
@@ -69,14 +70,14 @@ from transformers import AutoTokenizer
 from tokenizer_extension.extension import extend_tokenizer
 from tokenizer_extension.utils import read_json
 
-new_vocab = ["new_token1", "new_token2", "new_token3"]
+new_vocab = {"new_token1": 0, "new_token2": 1, "new_token3": 2}
 
-tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
+tokenizer = AutoTokenizer.from_pretrained(BASE_TOKENIZER_PATH)
 tokenizer = extend_tokenizer(
     tokenizer,
     new_vocab=new_vocab,
     new_merges=None,
-    n_tokens=1000,
+    n_tokens=3,
     keep_added_token_positions=False,
 )
 tokenizer.save_pretrained(output_path)
