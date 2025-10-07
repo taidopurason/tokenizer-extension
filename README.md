@@ -49,27 +49,6 @@ from transformers import AutoTokenizer
 from tokenizer_extension.extension import extend_tokenizer
 from tokenizer_extension.utils import read_json
 
-new_vocab = ["new_token1", "new_token2", "new_token3"]
-
-tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
-tokenizer = extend_tokenizer(
-    tokenizer,
-    new_vocab=new_vocab,
-    new_merges=None,
-    n_tokens=1000,
-    keep_added_token_positions=False,
-)
-tokenizer.save_pretrained(output_path)
-```
-Note the extension works in-place changing the tokenizer object.
-
-
-Generating merges based on the vocabulary:
-```
-from transformers import AutoTokenizer
-from tokenizer_extension.extension import extend_tokenizer
-from tokenizer_extension.utils import read_json
-
 new_vocab = read_json("vocab.json")
 new_merges = [tuple(x.split(" ")) for x in read_json("merges.json")]
 
@@ -84,6 +63,25 @@ tokenizer = extend_tokenizer(
 tokenizer.save_pretrained(output_path)
 ```
 
+Generating merges based on the vocabulary:
+```
+from transformers import AutoTokenizer
+from tokenizer_extension.extension import extend_tokenizer
+from tokenizer_extension.utils import read_json
+
+new_vocab = ["new_token1", "new_token2", "new_token3"]
+
+tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
+tokenizer = extend_tokenizer(
+    tokenizer,
+    new_vocab=new_vocab,
+    new_merges=None,
+    n_tokens=1000,
+    keep_added_token_positions=False,
+)
+tokenizer.save_pretrained(output_path)
+```
+Note the extension works in-place, changing the tokenizer object.
 ### Pruning the vocabulary
 We provide various pruning strategies.
 
@@ -111,7 +109,7 @@ pruner = LeafFrequencyPruner()
 pruner.train(tokenizer, train_docs)
 
 # saving the pruner
-pruner.save("merge_based.json")
+pruner.save("leaf_freq.json")
 
 # pruning n tokens (in-place)
 pruner.prune(tokenizer, n_tokens)
@@ -139,11 +137,11 @@ from transformers import AutoTokenizer
 from tokenizer_extension.pruning import PretrainedPruner
 
 n_tokens = 1000  # number of tokens to prune
-pruner = PretrainedPruner.load("merge_based.json")
+pruner = PretrainedPruner.load("leaf_freq.json")
 pruner.prune(AutoTokenizer.from_pretrained(BASE_TOKENIZER_PATH), n_tokens)
 ```
 
-Note: Pruning with SentencePiece models is currently not implemented.
+Note: Pruning SentencePiece models is currently not implemented.
 
 ### Modifying the model embeddings
 Modifying the model embeddings to match the new tokenizer vocabulary.
