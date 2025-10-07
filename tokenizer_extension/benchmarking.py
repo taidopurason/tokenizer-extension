@@ -108,6 +108,7 @@ def evaluate_tokenizer(
         extension_vocab: Optional[Dict[str, int]] = None,
         byte_vocab: Set[str] = None,
         is_sentencepiece: bool = False,
+        return_frequencies: bool = False,
 ) -> Dict[str, float]:
     total_tokens = 0
     total_chars = 0
@@ -156,7 +157,7 @@ def evaluate_tokenizer(
         extension_utilisation = 0
         extensions_tokens = 0
 
-    return {
+    results = {
         "vocab_size": len(vocab),
         "dataset_size": total_examples,
         "total_tokens": total_tokens,
@@ -179,6 +180,10 @@ def evaluate_tokenizer(
         "extension_tokens_per_token": extensions_tokens / total_tokens,
         "byte_fallback_rate": total_byte_fallbacks / total_tokens,
     }
+    if return_frequencies:
+        results["frequencies"] = vocab_usage
+
+    return results
 
 
 def evaluate_renyi_entropy(

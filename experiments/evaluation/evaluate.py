@@ -70,7 +70,7 @@ def load_eval_datasets(lang, heldout=False):
 
 def run_benchmark(
         tokenizer, lang: str, extension_vocab: Set[str] = None, is_sentencepiece: bool = False, heldout: bool = True,
-        evaluate_renyi: bool = True, ignore_merges: Optional[bool] = None
+        evaluate_renyi: bool = True, ignore_merges: Optional[bool] = None, return_frequencies: bool = False
 ):
     self_eval_results = evaluate_tokenizer_self(tokenizer, extension_vocab)
 
@@ -79,6 +79,7 @@ def run_benchmark(
         for name, dss in load_eval_datasets(lang, heldout).items():
             results = evaluate_tokenizer(
                 tokenizer, dss, extension_vocab=extension_vocab, is_sentencepiece=is_sentencepiece,
+                return_frequencies=return_frequencies
             )
             if evaluate_renyi:
                 results["renyi_entropy"] = evaluate_renyi_entropy(tokenizer, dss)
@@ -114,7 +115,8 @@ def eval_language(
         extension_values: Optional[List[int]] = None,
         run_heldout_eval: bool = True,
         evaluate_renyi: bool = True,
-        ignore_merges: Optional[bool] = None
+        ignore_merges: Optional[bool] = None,
+        return_frequencies: bool = False,
 ):
     if extension_values is None:
         extension_values = [0, 1000, 2000, 4000, 8000, 16000, 32000]
@@ -124,7 +126,7 @@ def eval_language(
     base_model = AutoTokenizer.from_pretrained(hf_model_name)
     baseline_score = run_benchmark(
         base_model, lang=lang, extension_vocab=None, is_sentencepiece=is_sentencepiece, heldout=run_heldout_eval,
-        evaluate_renyi=evaluate_renyi, ignore_merges=ignore_merges
+        evaluate_renyi=evaluate_renyi, ignore_merges=ignore_merges, return_frequencies=return_frequencies
     )
 
     base_vocab_tokens = set(base_model.get_vocab())
