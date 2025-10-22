@@ -146,7 +146,8 @@ def eval_language(
                 assert len(ext_vocab) == n_extension, f"Expected {n_extension} extension tokens, got {len(ext_vocab)}"
                 results = run_benchmark(extended_tokenizer, lang=lang, extension_vocab=ext_vocab,
                                         is_sentencepiece=is_sentencepiece, heldout=run_heldout_eval,
-                                        evaluate_renyi=evaluate_renyi, ignore_merges=ignore_merges
+                                        evaluate_renyi=evaluate_renyi, ignore_merges=ignore_merges,
+                                        return_frequencies=return_frequencies
                                         )
             results = [
                 {
