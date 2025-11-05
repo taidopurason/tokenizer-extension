@@ -1,0 +1,9 @@
+dataset_name: "eng_Latn"
+fewshot_split: "validation"
+include: "_default_template_yaml"
+task: "sib200_en"
+test_split: "test"
+description: "Topic Classification: science/technology, travel, politics, sports, health, entertainment, geography.\n\n"
+doc_to_text: "The topic of \"[{{text.strip()}}]\" is:"
+doc_to_choice: ["science/technology", "travel", "politics", "sports", "health", "entertainment", "geography"]
+doc_to_target: "{{['science/technology', 'travel', 'politics', 'sports', 'health', 'entertainment', 'geography'].index(category)}}"

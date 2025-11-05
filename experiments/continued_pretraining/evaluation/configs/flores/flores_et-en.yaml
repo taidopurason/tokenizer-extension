@@ -1,0 +1,7 @@
+dataset_name: "est_Latn-eng_Latn"
+description: "Translate the text from Estonian to English.\n\n"
+doc_to_decontamination_query: "{{sentence_est_Latn}}\t{{sentence_eng_Latn}}"
+doc_to_target: "{{sentence_eng_Latn}}"
+doc_to_text: "Estonian: {{sentence_est_Latn}}\nEnglish:"
+include: "_default_template_yaml"
+task: "flores_et-en"

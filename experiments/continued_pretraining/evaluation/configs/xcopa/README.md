@@ -1,0 +1,1 @@
+Configuration taken from [lm-eval-harness repository](https://github.com/EleutherAI/lm-evaluation-harness/tree/main/lm_eval/tasks/xcopa).
