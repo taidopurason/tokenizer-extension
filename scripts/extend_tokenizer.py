@@ -6,12 +6,7 @@ from transformers import AutoTokenizer
 
 from tokenizer_extension.extension import extend_tokenizer, extend_sp_model
 from tokenizer_extension.utils import read_json, get_vocab_and_merges
-from tokenizer_extension.sentencepiece_utils import reorder_sp_vocab
-
-
-def read_sentencepiece_vocab(path: str) -> list:
-    with open(path, "r", encoding="utf-8") as f:
-        return [line.split()[0] for line in f]
+from tokenizer_extension.sentencepiece_utils import reorder_sp_vocab, read_sentencepiece_vocab
 
 
 def extend(
@@ -53,7 +48,7 @@ def extend(
             n_tokens=n_tokens,
         )
     elif tokenizer_implementation == "huggingface":
-        alphabet = [] if is_sentencepiece else None
+        alphabet = [] if is_sentencepiece else "byte"
         tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
         tokenizer = extend_tokenizer(
             tokenizer,
