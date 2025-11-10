@@ -38,7 +38,7 @@ def get_vocab_scores(
     return [(t, s) for t, s in zip(vocab, scores)]
 
 
-def extend_vocab(
+def extend_vocab_merges(
         new_vocab: Dict[str, int],
         vocab: Dict[str, int],
         merges: List[Tuple[str, str]],
@@ -46,12 +46,19 @@ def extend_vocab(
         new_merges: Optional[List[Tuple[str, str]]] = None,
         n_tokens: Optional[int] = None,
         generate_new_merges: bool = False,
-        alphabet: Optional[List[str]] = None,
+        alphabet: Optional[Tuple[List[str], str]] = "byte",
         added_tokens: Optional[List[str]] = None,
         prepend_merges: bool = False,
 ) -> Tuple[Dict[str, int], List[Tuple[str, str]]]:
     if alphabet is None:
-        alphabet = list(sorted(pre_tokenizers.ByteLevel.alphabet()))
+        alphabet = []
+    elif isinstance(alphabet, str):
+        if alphabet == "byte":
+            alphabet = list(sorted(pre_tokenizers.ByteLevel.alphabet()))
+        elif alphabet == "char":
+            alphabet = [x for x in get_ordered_vocab(vocab) if len(x) == 1]
+        else:
+            raise ValueError(f"Unknown alphabet type: {alphabet}")
 
     new_vocab_filtered = {k: v for k, v in new_vocab.items() if k not in vocab and k not in added_tokens}
     if n_tokens is not None and len(new_vocab_filtered) < n_tokens:
@@ -90,13 +97,13 @@ def extend_tokenizer(
         n_tokens: int = None,
         generate_new_merges: bool = False,
         prepend_merges: bool = False,
-        alphabet: List[str] = None,
+        alphabet: Optional[Tuple[List[str], str]] = "byte",
         keep_added_token_positions: bool = False
 ):
     vocab, merges = get_vocab_and_merges(tokenizer)
     max_token_id = max(v for _, v in tokenizer._tokenizer.get_vocab(keep_added_token_positions).items())
     added_tokens_vocab = get_added_tokens_vocab(tokenizer)
-    ext_vocab, ext_merges = extend_vocab(
+    ext_vocab, ext_merges = extend_vocab_merges(
         new_vocab,
         vocab,
         merges,

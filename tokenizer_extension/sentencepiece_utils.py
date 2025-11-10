@@ -200,9 +200,21 @@ def train_sentencepiece_from_model(
 ILLEGAL_CHARS = {" ", "\n", "\r", "", "\t"}
 
 
-def read_sentencepiece_vocab(path: str) -> list:
+def read_sentencepiece_from_vocab(path: str) -> list:
     with open(path, "r", encoding="utf-8") as f:
         return [line.split()[0] for line in f]
+
+
+def read_sentencepiece_vocab_from_model(path: str) -> list:
+    import sentencepiece as spm
+    tokenizer = spm.SentencePieceProcessor(model_file=path)
+    return [tokenizer.id_to_piece(idx) for idx in range(tokenizer.vocab_size())]
+
+
+def read_sentencepiece_vocab(path: str) -> list:
+    if path.endswith(".model"):
+        return read_sentencepiece_vocab_from_model(path)
+    return read_sentencepiece_from_vocab(path)
 
 
 def train_coverage_extension(
@@ -252,6 +264,7 @@ def train_coverage_extension(
     logging.info(f"New coverage: {new_coverage}")
 
     return {x[0]: idx for idx, x in enumerate(sorted_characters)}
+
 
 # Reorder vocab so that character vocabulary gets added first
 def reorder_sp_vocab(vocab: dict) -> dict:
