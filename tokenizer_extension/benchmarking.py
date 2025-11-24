@@ -2,7 +2,7 @@ from typing import Optional, Iterable, Dict, Set
 
 from tokenizers import pre_tokenizers
 
-from tokenizer_extension.utils import get_vocab_and_merges, get_added_tokens_vocab
+from tokenizer_extension.utils import get_vocab_and_merges, get_added_tokens_vocab, disable_ignore_merges
 from tokenizer_extension.sentencepiece_utils import BYTE_VOCAB
 
 try:
@@ -15,12 +15,8 @@ SP_BYTE_VOCAB = set(BYTE_VOCAB)
 
 
 def find_unreachable_tokens_tokenization(tokenizer, ignore_added=True):
-    original_value = None
-    try:
+    with disable_ignore_merges(tokenizer):
         vocab, merges = get_vocab_and_merges(tokenizer)
-        if hasattr(tokenizer._tokenizer.model, "ignore_merges"):
-            original_value = tokenizer._tokenizer.model.ignore_merges
-            tokenizer._tokenizer.model.ignore_merges = False
 
         reachability = {}
         for tok in vocab:
@@ -31,9 +27,6 @@ def find_unreachable_tokens_tokenization(tokenizer, ignore_added=True):
         if ignore_added:
             unreachable_tokens = unreachable_tokens - set(get_added_tokens_vocab(tokenizer))
         return unreachable_tokens
-    finally:
-        if original_value is not None:
-            tokenizer._tokenizer.model.ignore_merges = original_value
 
 
 def fill_reachability(token, reachability, token_merges, alphabet):
