@@ -179,7 +179,7 @@ def evaluate_tokenizer(
     return results
 
 
-def evaluate_renyi_entropy(
+def evaluate_renyi_efficiency(
         tokenizer,
         data: Iterable[str],
 ) -> float:
