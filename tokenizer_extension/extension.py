@@ -1,13 +1,13 @@
 import logging
+import warnings
 from itertools import islice
 from typing import Optional, List, Tuple, Dict, Union
 from tokenizers import pre_tokenizers
 from transformers.convert_slow_tokenizer import generate_merges
 
-from tokenizer_extension.sentencepiece_utils import read_model, ILLEGAL_CHARS
+from tokenizer_extension.sentencepiece_utils import read_model_proto, ILLEGAL_CHARS, save_model_proto, save_vocab_proto
 from tokenizer_extension.utils import get_ordered_vocab, get_vocab_and_merges, replace_tokenizer_vocab_merges, \
-    get_added_tokens_vocab, \
-    update_postprocessor_special_tokens
+    get_added_tokens_vocab, update_postprocessor_special_tokens
 
 
 def get_vocab_scores(
@@ -73,6 +73,10 @@ def extend_vocab_merges(
     combined_vocab = {**vocab, **new_vocab_filtered}
 
     if generate_new_merges:
+        if prepend_merges:
+            raise ValueError("Cannot prepend merges when regenerating all merges.")
+        if new_merges is not None:
+            warnings.warn("new_merges is ignored when generate_new_merges is set to True.")
         combined_vocab_scores = get_vocab_scores(combined_vocab, alphabet=alphabet, added_tokens=added_tokens)
         combined_merges = generate_merges(combined_vocab, combined_vocab_scores)
         return combined_vocab, combined_merges
@@ -94,7 +98,7 @@ def extend_vocab_merges(
 
 def extend_tokenizer(
         tokenizer,
-        new_vocab: Dict[str, int],
+        new_vocab: Union[Dict[str, int], List[str]],
         new_merges: Optional[List[Tuple[str, str]]] = None,
         n_tokens: int = None,
         generate_new_merges: bool = False,
@@ -102,8 +106,22 @@ def extend_tokenizer(
         alphabet: Optional[Tuple[List[str], str]] = "byte",
         keep_added_token_positions: bool = False
 ):
+    """
+    Extends the tokenizer with new tokens and merges inplace (changing the original tokenizer object).
+    :param tokenizer: Tokenizer to extend
+    :param new_vocab: New vocabulary to add
+    :param new_merges: The merges to add. If None, merges will be generated based on the new_vocab, leaving existing merges intact.
+    :param n_tokens: Number of tokens to add from new_vocab. If None, all tokens from new_vocab will be added.
+    :param generate_new_merges: Regenerates all merges if set to True.
+    :param prepend_merges: instead of appending the new merges to the end of the existing merges, prepend them to the beginning.
+    :param alphabet: The alphabet to use when generating merges. Can be "byte", "char" or a list of characters.
+    :param keep_added_token_positions: Keep the indices of special tokens of the original tokenizer
+    :return: the tokenizer object that was extended inplace
+    """
+    if not isinstance(new_vocab, dict):
+        new_vocab = {tok: idx for idx, tok in enumerate(new_vocab)}
     vocab, merges = get_vocab_and_merges(tokenizer)
-    max_token_id = max(v for _, v in tokenizer._tokenizer.get_vocab(keep_added_token_positions).items())
+    max_token_id = max(tokenizer._tokenizer.get_vocab(keep_added_token_positions).values())
     added_tokens_vocab = get_added_tokens_vocab(tokenizer)
     ext_vocab, ext_merges = extend_vocab_merges(
         new_vocab,
@@ -113,7 +131,7 @@ def extend_tokenizer(
         new_merges=new_merges,
         n_tokens=n_tokens,
         generate_new_merges=generate_new_merges,
-        added_tokens=list(get_added_tokens_vocab(tokenizer).keys()),
+        added_tokens=list(added_tokens_vocab.keys()),
         prepend_merges=prepend_merges,
         alphabet=alphabet
     )
@@ -136,7 +154,7 @@ def extend_tokenizer(
 
 def extend_sp_model(tokenizer_prefix, extension_vocab, out_prefix, n_tokens=None):
     from sentencepiece.sentencepiece_model_pb2 import ModelProto
-    model = read_model(f"{tokenizer_prefix}.model")
+    model = read_model_proto(f"{tokenizer_prefix}.model")
 
     score = min(p.score for p in model.pieces) - 1
     vocab = {p.piece for p in model.pieces}
