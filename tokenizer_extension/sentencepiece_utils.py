@@ -154,12 +154,23 @@ def get_token_script(token: str, prev: Optional[str] = None):
     return script
 
 
-def read_model(path: str):
+def read_model_proto(path: str):
     from sentencepiece.sentencepiece_model_pb2 import ModelProto
     model = ModelProto()
     with open(path, "rb") as f:
         model.ParseFromString(f.read())
     return model
+
+
+def save_model_proto(model, model_path: str):
+    with open(model_path, "wb") as f:
+        f.write(model.SerializeToString())
+
+
+def save_vocab_proto(model, vocab_path: str):
+    with open(vocab_path, "w", encoding="utf-8") as f:
+        for p in model.pieces:
+            f.write(f"{p.piece}\t{int(p.score)}\n")
 
 
 def train_sentencepiece_from_model(
@@ -171,7 +182,7 @@ def train_sentencepiece_from_model(
 ):
     import sentencepiece as spm
 
-    model = read_model(tokenizer_path)
+    model = read_model_proto(tokenizer_path)
     config = {x[0].name: getattr(model.trainer_spec, x[0].name) for x in model.trainer_spec.ListFields()}
     assert config["model_type"] == 2
     kwargs = {
