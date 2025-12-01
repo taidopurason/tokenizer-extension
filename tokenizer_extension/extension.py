@@ -103,7 +103,7 @@ def extend_tokenizer(
         n_tokens: int = None,
         generate_new_merges: bool = False,
         prepend_merges: bool = False,
-        alphabet: Optional[Tuple[List[str], str]] = "byte",
+        alphabet: Optional[Union[List[str], str]] = "byte",
         keep_added_token_positions: bool = False
 ):
     """
