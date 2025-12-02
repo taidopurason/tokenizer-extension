@@ -93,6 +93,12 @@ class PrunerBase(ABC):
         raise NotImplementedError()
 
     def train(self, tokenizer, training_data: Optional[List[str]]):
+        """
+        Trains the pruner.
+        :param tokenizer: The tokenizer to be pruned.
+        :param training_data: The training data for the pruner. Can be None for static pruners.
+        :return: The pruner object (self).
+        """
         if self.is_trained:
             raise ValueError("Pruner is already trained.")
         self._pruning_order = self.calculate_pruning_order(tokenizer, training_data)
@@ -100,6 +106,9 @@ class PrunerBase(ABC):
 
     @property
     def raw_pruning_order(self) -> List[str]:
+        """
+        :return: Pruning order without any filtering of special tokens.
+        """
         if not self.is_trained:
             raise ValueError("Pruner is not trained yet.")
         return self._pruning_order
@@ -118,6 +127,15 @@ class PrunerBase(ABC):
             ignore_special: bool = True,
             ignore_tokens: Optional[List[str]] = None
     ) -> List[str]:
+        """
+        Gets the tokens to prune based on the pruning order and filtering options.
+        :param tokenizer: Tokenizer to prune.
+        :param n: Number of tokens to prune. If None, all tokens in the pruning order are returned.
+        :param ignore_added: Ignore added tokens.
+        :param ignore_special: Ignore special tokens.
+        :param ignore_tokens: Custom list of tokens to ignore.
+        :return: Pruning order with filtered tokens.
+        """
         tokens_to_prune = list(islice(filter_special_tokens(
             tokenizer,
             self.raw_pruning_order,
@@ -137,6 +155,15 @@ class PrunerBase(ABC):
             ignore_special: bool = True,
             ignore_tokens: Optional[List[str]] = None
     ):
+        """
+        Prunes the tokenizer inplace (changing the original tokenizer object).
+        :param tokenizer: Tokenizer to prune.
+        :param n: Number of tokens to prune. If None, all tokens in the pruning order are pruned.
+        :param ignore_added: Ignore added tokens.
+        :param ignore_special: Ignore special tokens.
+        :param ignore_tokens: Custom list of tokens to ignore.
+        :return: The pruned tokenizer.
+        """
         tokens_to_prune = self.get_tokens_to_prune(
             tokenizer, n=n, ignore_added=ignore_added, ignore_special=ignore_special, ignore_tokens=ignore_tokens
         )
@@ -155,6 +182,16 @@ class PrunerBase(ABC):
             ignore_special: bool = True,
             ignore_tokens: Optional[List[str]] = None
     ):
+        """
+        Trains and prunes the tokenizer inplace (changing the original tokenizer object).
+        :param tokenizer: Tokenizer to prune.
+        :param training_data: The training data for the pruner. Can be None for static pruners.
+        :param n: Number of tokens to prune. If None, all tokens in the pruning order are pruned.
+        :param ignore_added: Ignore added tokens.
+        :param ignore_special: Ignore special tokens.
+        :param ignore_tokens: Custom list of tokens to ignore.
+        :return: The pruned tokenizer.
+        """
         self.train(tokenizer, training_data)
         return self.prune(
             tokenizer=tokenizer,
@@ -238,6 +275,7 @@ def calculate_frequency_order(tokenizer, texts) -> List[str]:
     token_counts = calculate_token_frequency(tokenizer=tokenizer, texts=texts)
     full_vocab = tokenizer._tokenizer.get_vocab(True)
     return [tok for tok, _ in sorted(token_counts.items(), key=lambda x: (x[1], -full_vocab[x[0]]))]
+
 
 @register_pruner("frequency")
 class FrequencyPruner(TrainablePrunerBase):
