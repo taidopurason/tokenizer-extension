@@ -89,6 +89,15 @@ def train_vocab_extension(
         max_token_length: Optional[int] = None,
         sp_kwargs: Optional[dict] = None,
 ) -> dict:
+    """
+    :param tokenizer: The tokenizer to continually train
+    :param corpus: Training corpus
+    :param extension_size: The Number of tokens to add to the vocabulary
+    :param is_sentencepiece: Is the tokenizer that is extended a (HuggingFace) SentencePiece tokenizer
+    :param max_token_length: maximum length of a token created
+    :param sp_kwargs: SentencePiece specific kwargs
+    :return: Dictionary with keys: 'vocab', 'merges', 'pair_freqs', 'word_freqs'
+    """
     split_freqs = defaultdict(int)
 
     if is_sentencepiece:
