@@ -1,7 +1,8 @@
 # Tokenizer extension
 
 This repository provides a lightweight toolkit for modifying the vocabularies of pre-trained models that use BPE tokenizers.
-It supports both HuggingFace and SentencePiece tokenizers.
+It supports mainly HuggingFace transformers Byte-level BPE tokenizers (such as Llama-3, Qwen-2.5). Some functionality has also been
+extended to SentencePiece BPE tokenizers (such as Llama-2) through HuggingFace transformers and the original SentencePiece interface.
 
 ## Installation
 After cloning this repository it can be installed using pip:
