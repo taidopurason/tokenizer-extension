@@ -29,49 +29,6 @@ def find_unreachable_tokens_tokenization(tokenizer, ignore_added=True):
         return unreachable_tokens
 
 
-def fill_reachability(token, reachability, token_merges, alphabet):
-    if token in reachability:
-        return
-
-    if token in alphabet:
-        reachability[token] = True
-        return
-
-    if token not in token_merges:
-        reachability[token] = False
-        return
-
-    reachability[token] = False
-    for t1, t2 in token_merges[token]:
-        fill_reachability(t1, reachability, token_merges, alphabet)
-        fill_reachability(t2, reachability, token_merges, alphabet)
-        if reachability[t1] and reachability[t2]:
-            reachability[token] = True
-            return
-
-
-def find_unreachable_tokens(tokenizer, is_sentencepiece=False, ignore_added=True):
-    vocab, merges = get_vocab_and_merges(tokenizer)
-    alphabet = set(x for x in vocab if len(x) == 1) if is_sentencepiece else set(pre_tokenizers.ByteLevel.alphabet())
-    token_merges = {}
-    for token in vocab:
-        token_merges[token] = []
-
-    for merge in merges:
-        token_merges["".join(merge)].append(merge)
-
-    reachability = {}
-    for token in vocab:
-        fill_reachability(token, reachability, token_merges, alphabet)
-
-    unreachable_tokens = set(tok for tok, value in reachability.items() if value == False)
-
-    if ignore_added:
-        unreachable_tokens = unreachable_tokens - set(get_added_tokens_vocab(tokenizer))
-
-    return unreachable_tokens
-
-
 def evaluate_tokenizer_self(
         tokenizer,
         extension_vocab: Optional[Dict[str, int]] = None,
