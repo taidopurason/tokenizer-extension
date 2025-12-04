@@ -14,10 +14,10 @@ setup(
         "requests",
         "sentencepiece",
         "fire",
-        "protobuf==3.20.*",
+        "protobuf>=3.20.0",
         "heapdict"
     ],
     extras_require={
-        "full": ["PyICU", "tokenization-scorer", "conllu", "dask", "matplotlib", "seaborn", "tiktoken>=0.7.0",],
+        "full": ["PyICU", "tokenization-scorer", "conllu", "dask", "tiktoken>=0.7.0",],
     },
 )
