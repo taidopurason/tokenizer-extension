@@ -6,8 +6,9 @@ from typing import List, Set, Optional
 
 import pandas as pd
 from transformers import AutoTokenizer
+from typing import List, Dict
 
-from tokenizer_extension.benchmarking import evaluate_tokenizer, evaluate_tokenizer_self, evaluate_renyi_entropy
+from tokenizer_extension.benchmarking import evaluate_tokenizer, evaluate_tokenizer_self, evaluate_renyi_efficiency
 
 from tokenizer_extension.data import load_flores as _load_flores
 from datasets import load_dataset
@@ -21,6 +22,43 @@ flores_lang_map = {
 }
 
 FINEWEB_CACHE = {}
+
+
+
+class SentencePieceWrapper:
+    def __init__(self, model_name: str, add_bos_token: bool = False, add_eos_token: bool = False):
+        import sentencepiece as spm
+        self.tokenizer = spm.SentencePieceProcessor(model_file=model_name)
+        self.whitespace_symbol = "▁"
+
+        self.add_bos_token = add_bos_token
+        self.add_eos_token = add_eos_token
+
+        self.vocab = {self.tokenizer.id_to_piece(idx): idx for idx in range(self.tokenizer.vocab_size())}
+        self.unk_token_id = self.tokenizer.unk_id()
+        self.unk_token = self.tokenizer.id_to_piece(self.unk_token_id)
+
+        self.bos_token_id = self.tokenizer.bos_id()
+        self.bos_token = self.tokenizer.id_to_piece(self.bos_token_id)
+
+        self.eos_token_id = self.tokenizer.eos_id()
+        self.eos_token = self.tokenizer.id_to_piece(self.eos_token_id)
+
+    def tokenize(self, text: str, add_special_tokens: bool = False) -> List[str]:
+        return self.tokenizer.encode(text, out_type=str, add_bos=add_special_tokens and self.add_bos_token,
+                                     add_eos=add_special_tokens and self.add_eos_token)
+
+    def encode(self, text: str) -> List[int]:
+        return self.tokenizer.encode(text, out_type=int, add_bos=self.add_bos_token, add_eos=self.add_eos_token)
+
+    def __call__(self, text: str) -> Dict[str, List[int]]:
+        return {"input_ids": self.encode(text)}
+
+    def get_vocab(self) -> Dict[str, int]:
+        return self.vocab
+
+    def __len__(self) -> int:
+        return self.tokenizer.vocab_size()
 
 
 def get_fineweb_ds(lang="ekk_Latn"):
@@ -57,10 +95,12 @@ def load_flores(lang):
     return ds
 
 
-def load_eval_datasets(lang, heldout=False):
+def load_eval_datasets(lang, heldout=False, mixed_flores=False):
     extra = {}
     if heldout:
         extra[f"{lang}_fineweb_heldout"] = load_fineweb_heldout_data(lang)
+    if mixed_flores:
+        extra["mixed_flores"] = load_flores("eng_Latn") + load_flores(lang)
     return {
         f"{lang}_flores": load_flores(lang),
         "eng_Latn_flores": load_flores("eng_Latn"),
@@ -70,24 +110,48 @@ def load_eval_datasets(lang, heldout=False):
 
 def run_benchmark(
         tokenizer, lang: str, extension_vocab: Set[str] = None, is_sentencepiece: bool = False, heldout: bool = True,
-        evaluate_renyi: bool = True, ignore_merges: Optional[bool] = None, return_frequencies: bool = False
+        evaluate_renyi: bool = True, ignore_merges: Optional[bool] = None, return_frequencies: bool = False,
+        mixed_flores: bool = False,
 ):
     self_eval_results = evaluate_tokenizer_self(tokenizer, extension_vocab)
 
     full_results = []
     with override_ignore_merges(tokenizer, ignore_merges):
-        for name, dss in load_eval_datasets(lang, heldout).items():
+        for name, dss in load_eval_datasets(lang, heldout, mixed_flores=mixed_flores).items():
             results = evaluate_tokenizer(
                 tokenizer, dss, extension_vocab=extension_vocab, is_sentencepiece=is_sentencepiece,
                 return_frequencies=return_frequencies
             )
             if evaluate_renyi:
-                results["renyi_entropy"] = evaluate_renyi_entropy(tokenizer, dss)
+                results["renyi_entropy"] = evaluate_renyi_efficiency(tokenizer, dss)
             full_results.append({
                 "dataset": name,
                 **self_eval_results,
                 **results,
             })
+    return full_results
+
+def run_benchmark_sp(
+        tokenizer, lang: str, extension_vocab: Set[str] = None, heldout: bool = True,
+        evaluate_renyi: bool = True, ignore_merges: Optional[bool] = None, return_frequencies: bool = False,
+        mixed_flores: bool = False,
+):
+    if evaluate_renyi:
+        raise NotImplementedError("Renyi evaluation not implemented for SP tokenizers")
+    if ignore_merges is not None:
+        raise NotImplementedError("ignore_merges not applicable for SP tokenizers")
+
+    full_results = []
+    for name, dss in load_eval_datasets(lang, heldout, mixed_flores=mixed_flores).items():
+        results = evaluate_tokenizer(
+            tokenizer, dss, extension_vocab=extension_vocab, is_sentencepiece=True,
+            return_frequencies=return_frequencies
+        )
+
+        full_results.append({
+            "dataset": name,
+            **results,
+        })
     return full_results
 
 
@@ -117,17 +181,34 @@ def eval_language(
         evaluate_renyi: bool = True,
         ignore_merges: Optional[bool] = None,
         return_frequencies: bool = False,
+        mixed_flores: bool = False,
+        base_model_path: Optional[str] = None,
+        implementation: str = "huggingface",
 ):
     if extension_values is None:
         extension_values = [0, 1000, 2000, 4000, 8000, 16000, 32000]
 
-    hf_model_name = model_dict[model_name]
+    if base_model_path is None:
+        hf_model_name = model_dict[model_name]
+    else:
+        hf_model_name = base_model_path
 
-    base_model = AutoTokenizer.from_pretrained(hf_model_name)
-    baseline_score = run_benchmark(
-        base_model, lang=lang, extension_vocab=None, is_sentencepiece=is_sentencepiece, heldout=run_heldout_eval,
-        evaluate_renyi=evaluate_renyi, ignore_merges=ignore_merges, return_frequencies=return_frequencies
-    )
+    if implementation == "huggingface":
+        base_model = AutoTokenizer.from_pretrained(hf_model_name)
+        baseline_score = run_benchmark(
+            base_model, lang=lang, extension_vocab=None, is_sentencepiece=is_sentencepiece, heldout=run_heldout_eval,
+            evaluate_renyi=evaluate_renyi, ignore_merges=ignore_merges, return_frequencies=return_frequencies,
+            mixed_flores=mixed_flores,
+        )
+    elif implementation == "sentencepiece":
+        base_model = SentencePieceWrapper(hf_model_name)
+        baseline_score = run_benchmark_sp(
+            base_model, lang=lang, extension_vocab=None, heldout=run_heldout_eval,
+            evaluate_renyi=evaluate_renyi, ignore_merges=ignore_merges, return_frequencies=return_frequencies,
+            mixed_flores=mixed_flores,
+        )
+    else:
+        raise ValueError(f"Unknown implementation: {implementation}")
 
     base_vocab_tokens = set(base_model.get_vocab())
 
@@ -138,17 +219,30 @@ def eval_language(
             if n_extension == 0:
                 results = baseline_score
             else:
-
-                tokenizer_path = f"{experiment_path}/{dataset_name}-{lang}/tokenizers/{extension_method_map[extension_method]}-{model_name}-{budget}-ext{n_extension}"
-                extended_tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
-                ext_model_tokens = set(extended_tokenizer.get_vocab())
-                ext_vocab = ext_model_tokens - base_vocab_tokens
-                assert len(ext_vocab) == n_extension, f"Expected {n_extension} extension tokens, got {len(ext_vocab)}"
-                results = run_benchmark(extended_tokenizer, lang=lang, extension_vocab=ext_vocab,
-                                        is_sentencepiece=is_sentencepiece, heldout=run_heldout_eval,
-                                        evaluate_renyi=evaluate_renyi, ignore_merges=ignore_merges,
-                                        return_frequencies=return_frequencies
-                                        )
+                if implementation == "huggingface":
+                    tokenizer_path = f"{experiment_path}/{dataset_name}-{lang}/tokenizers/{extension_method_map[extension_method]}-{model_name}-{budget}-ext{n_extension}"
+                    extended_tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
+                    ext_model_tokens = set(extended_tokenizer.get_vocab())
+                    ext_vocab = ext_model_tokens - base_vocab_tokens
+                    assert len(ext_vocab) == n_extension, f"Expected {n_extension} extension tokens, got {len(ext_vocab)}"
+                    results = run_benchmark(extended_tokenizer, lang=lang, extension_vocab=ext_vocab,
+                                            is_sentencepiece=is_sentencepiece, heldout=run_heldout_eval,
+                                            evaluate_renyi=evaluate_renyi, ignore_merges=ignore_merges,
+                                            return_frequencies=return_frequencies,
+                                            mixed_flores=mixed_flores,
+                                            )
+                elif implementation == "sentencepiece":
+                    tokenizer_path = f"{experiment_path}/{dataset_name}-{lang}/sp-tokenizers/{extension_method_map[extension_method]}-{model_name}-{budget}-ext{n_extension}/tokenizer.model"
+                    extended_tokenizer = SentencePieceWrapper(tokenizer_path)
+                    ext_model_tokens = set(extended_tokenizer.get_vocab())
+                    ext_vocab = ext_model_tokens - base_vocab_tokens
+                    assert len(ext_vocab) == n_extension, f"Expected {n_extension} extension tokens, got {len(ext_vocab)}"
+                    results = run_benchmark_sp(extended_tokenizer, lang=lang, extension_vocab=ext_vocab,
+                                            heldout=run_heldout_eval,
+                                            evaluate_renyi=evaluate_renyi, ignore_merges=ignore_merges,
+                                            return_frequencies=return_frequencies,
+                                            mixed_flores=mixed_flores,
+                                            )
             results = [
                 {
                     "tokenizer_name": f"{model_name}-{budget}-{extension_method}-{n_extension}",
