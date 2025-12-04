@@ -1,8 +1,13 @@
-# Tokenizer extension
+# Tokenizer Extension
 
-This repository provides a lightweight toolkit for modifying the vocabularies of pre-trained models that use BPE tokenizers.
-It supports mainly HuggingFace transformers Byte-level BPE tokenizers (such as Llama-3, Qwen-2.5). Some functionality has also been
-extended to SentencePiece BPE tokenizers (such as Llama-2) through HuggingFace transformers and the original SentencePiece interface.
+This repository provides a lightweight toolkit for adapting and extending the vocabularies of pre-trained models that use BPE tokenizers. 
+It primarily supports HuggingFace **byte-level BPE** tokenizers (e.g., Llama-3, Qwen-2.5), with partial support for **SentencePiece BPE** tokenizers (e.g., Llama-2) via both HuggingFace Transformers and the original SentencePiece implementation.
+
+The toolkit implements **continued BPE training** for vocabulary extension as well as **vocabulary pruning** strategies presented in our paper:  
+[**Teaching Old Tokenizers New Words: Efficient Tokenizer Adaptation for Pre-trained Models**](https://arxiv.org/abs/2512.03989) (preprint).
+
+**Usage Guide:**
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/taidopurason/tokenizer-extension/blob/main/tokenizer_extension_example.ipynb)
 
 ## Installation
 After cloning this repository it can be installed using pip:
@@ -20,7 +25,12 @@ This toolkit includes utilities for:
 
 
 
-### Training vocabulary extension
+### Training vocabulary extension (Continued BPE training)
+💡 Continued BPE training provides an effective way to extend a tokenizer’s vocabulary for a new domain.  
+By **continuing the original BPE training process** on a target text corpus, it learns new tokens and merges that remain fully compatible with the existing vocabulary. 
+This ensures that all added tokens and merges are fully compatible and optimal under the BPE objective, without introducing any unreachable tokens.
+As a result, continued BPE training often achieves better text compression for the same vocabulary size compared to adding tokens from an auxiliary tokenizer.
+
 
 ```
 from transformers import AutoTokenizer
@@ -85,18 +95,20 @@ tokenizer.save_pretrained(output_path)
 ```
 Note the extension works in-place, changing the tokenizer object.
 ### Pruning the vocabulary
-We provide various pruning strategies.
+We provide various pruning strategies. 
 
 Trainable with a corpus:
 * Frequency
-* Frequency (leaf)
-* Merge-based
+* **Frequency (leaf)**
+* **Merge-based**
 
 Do not need a training corpus:
 * Last N (ID-based)
-* Last N (leaf)
+* **Last N (leaf)**
 * Script-based
 
+💡 We recommend using leaf-based pruning strategies as they tend to yield better performance without creating unreachable tokens.
+Merge-based pruning yields similar results to leaf-based frequency pruning, also avoiding unreachable tokens.
 
 Note that the pruning works in-place changing the tokenizer object.
 Usage example:
@@ -186,3 +198,15 @@ We provide tools for finding unreachable tokens (not reachable by merges) in the
 ### CLI
 See scripts in the `scripts/` directory for command line usage of the tools.
 
+## Citation
+````
+@misc{purason2025teachingoldtokenizersnew,
+      title={Teaching Old Tokenizers New Words: Efficient Tokenizer Adaptation for Pre-trained Models}, 
+      author={Taido Purason and Pavel Chizhov and Ivan P. Yamshchikov and Mark Fishel},
+      year={2025},
+      eprint={2512.03989},
+      archivePrefix={arXiv},
+      primaryClass={cs.CL},
+      url={https://arxiv.org/abs/2512.03989}, 
+}
+````
