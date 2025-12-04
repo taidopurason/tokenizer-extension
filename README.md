@@ -1,6 +1,6 @@
 # Tokenizer Extension
 
-This repository provides a lightweight toolkit for adapting and extending the vocabularies of pre-trained models that use BPE tokenizers. 
+This repository provides a lightweight toolkit for extending and pruning the vocabularies of pre-trained models that use BPE tokenizers. 
 It primarily supports HuggingFace **byte-level BPE** tokenizers (e.g., Llama-3, Qwen-2.5), with partial support for **SentencePiece BPE** tokenizers (e.g., Llama-2) via both HuggingFace Transformers and the original SentencePiece implementation.
 
 The toolkit implements **continued BPE training** for vocabulary extension as well as **vocabulary pruning** strategies presented in our paper:  
